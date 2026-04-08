@@ -81,6 +81,7 @@ export default function App() {
         frontSolvedQ={currentFrontQ}
         rearSolvedQ={currentRearQ}
         travel={travel}
+        wheelbase={model.vehicle.wheelbase}
       />
 
       <ChartsPanel

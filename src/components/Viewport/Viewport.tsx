@@ -11,6 +11,7 @@ interface Props {
   frontSolvedQ: number[] | null;
   rearSolvedQ: number[] | null;
   travel: number;
+  wheelbase: number; // mm, used to separate front/rear axles along X
 }
 
 /** Mirror a Vec3 across the Y=0 plane (RHS→LHS in ISO 8855) */
@@ -34,6 +35,29 @@ function mirrorHardpoints(hp: Hardpoints): Hardpoints {
     result[key] = mirrorY(val);
   }
   return result as Hardpoints;
+}
+
+/** Offset a Vec3 along X */
+function offsetVec3X(p: Vec3, dx: number): Vec3 {
+  return [p[0] + dx, p[1], p[2]];
+}
+
+/** Offset all hardpoints along X */
+function offsetHardpointsX(hp: Hardpoints, dx: number): Hardpoints {
+  const result = {} as Record<string, Vec3>;
+  for (const [key, val] of Object.entries(hp)) {
+    result[key] = offsetVec3X(val, dx);
+  }
+  return result as Hardpoints;
+}
+
+/** Offset a solved state vector (9 values: UBJ, LBJ, TRO) along X */
+function offsetQX(q: number[], dx: number): number[] {
+  return [
+    q[0] + dx, q[1], q[2],
+    q[3] + dx, q[4], q[5],
+    q[6] + dx, q[7], q[8],
+  ];
 }
 
 function Sphere({ pos, color, size = 4 }: { pos: Vec3; color: string; size?: number }) {
@@ -214,43 +238,55 @@ function AxleLines({
   );
 }
 
-export const Viewport: React.FC<Props> = ({ frontHP, rearHP, frontSolvedQ, rearSolvedQ, travel }) => {
-  // Mirror hardpoints for LHS
-  const frontLHS_HP = useMemo(() => mirrorHardpoints(frontHP), [frontHP]);
-  const rearLHS_HP = useMemo(() => mirrorHardpoints(rearHP), [rearHP]);
+export const Viewport: React.FC<Props> = ({ frontHP, rearHP, frontSolvedQ, rearSolvedQ, travel, wheelbase }) => {
+  // Offset: front at +wheelbase/2, rear at -wheelbase/2 so the car is centred at X=0
+  const fDx = wheelbase / 2;
+  const rDx = -wheelbase / 2;
 
-  // Mirror solved states for LHS
-  const frontLHS_Q = useMemo(() => frontSolvedQ ? mirrorQ(frontSolvedQ) : null, [frontSolvedQ]);
-  const rearLHS_Q = useMemo(() => rearSolvedQ ? mirrorQ(rearSolvedQ) : null, [rearSolvedQ]);
+  // Front RHS/LHS hardpoints (offset along X)
+  const frontRHS_HP = useMemo(() => offsetHardpointsX(frontHP, fDx), [frontHP, fDx]);
+  const frontLHS_HP = useMemo(() => mirrorHardpoints(offsetHardpointsX(frontHP, fDx)), [frontHP, fDx]);
 
-  // Get ball joint positions for axle lines
-  const frUBJ: Vec3 = frontSolvedQ ? [frontSolvedQ[0], frontSolvedQ[1], frontSolvedQ[2]] : frontHP.UBJ;
-  const frLBJ: Vec3 = frontSolvedQ ? [frontSolvedQ[3], frontSolvedQ[4], frontSolvedQ[5]] : frontHP.LBJ;
-  const flUBJ = mirrorY(frUBJ);
+  // Rear RHS/LHS hardpoints (offset along X)
+  const rearRHS_HP = useMemo(() => offsetHardpointsX(rearHP, rDx), [rearHP, rDx]);
+  const rearLHS_HP = useMemo(() => mirrorHardpoints(offsetHardpointsX(rearHP, rDx)), [rearHP, rDx]);
+
+  // Solved states (offset and mirror)
+  const frontRHS_Q = useMemo(() => frontSolvedQ ? offsetQX(frontSolvedQ, fDx) : null, [frontSolvedQ, fDx]);
+  const frontLHS_Q = useMemo(() => frontSolvedQ ? mirrorQ(offsetQX(frontSolvedQ, fDx)) : null, [frontSolvedQ, fDx]);
+  const rearRHS_Q = useMemo(() => rearSolvedQ ? offsetQX(rearSolvedQ, rDx) : null, [rearSolvedQ, rDx]);
+  const rearLHS_Q = useMemo(() => rearSolvedQ ? mirrorQ(offsetQX(rearSolvedQ, rDx)) : null, [rearSolvedQ, rDx]);
+
+  // Ball joint positions for axle lines
+  const frLBJ: Vec3 = frontRHS_Q ? [frontRHS_Q[3], frontRHS_Q[4], frontRHS_Q[5]] : frontRHS_HP.LBJ;
   const flLBJ = mirrorY(frLBJ);
-  const rrUBJ: Vec3 = rearSolvedQ ? [rearSolvedQ[0], rearSolvedQ[1], rearSolvedQ[2]] : rearHP.UBJ;
-  const rrLBJ: Vec3 = rearSolvedQ ? [rearSolvedQ[3], rearSolvedQ[4], rearSolvedQ[5]] : rearHP.LBJ;
-  const rlUBJ = mirrorY(rrUBJ);
+  const rrLBJ: Vec3 = rearRHS_Q ? [rearRHS_Q[3], rearRHS_Q[4], rearRHS_Q[5]] : rearRHS_HP.LBJ;
   const rlLBJ = mirrorY(rrLBJ);
+
+  // Dummy values for unused axle line props
+  const frUBJ: Vec3 = frontRHS_Q ? [frontRHS_Q[0], frontRHS_Q[1], frontRHS_Q[2]] : frontRHS_HP.UBJ;
+  const flUBJ = mirrorY(frUBJ);
+  const rrUBJ: Vec3 = rearRHS_Q ? [rearRHS_Q[0], rearRHS_Q[1], rearRHS_Q[2]] : rearRHS_HP.UBJ;
+  const rlUBJ = mirrorY(rrUBJ);
 
   return (
     <div style={{ flex: 1, background: '#111' }}>
       <Canvas
-        camera={{ position: [1500, 800, 1200], fov: 45, near: 1, far: 20000 }}
+        camera={{ position: [2500, 1000, 1500], fov: 45, near: 1, far: 20000 }}
         style={{ width: '100%', height: '100%' }}
       >
         <ambientLight intensity={0.5} />
         <directionalLight position={[500, 800, 300]} intensity={0.8} />
-        <OrbitControls target={[0, 250, 0]} />
+        <OrbitControls target={[0, 200, 0]} />
 
         <GroundGrid />
 
         {/* Front RHS */}
-        <SuspensionCorner hp={frontHP} solvedQ={frontSolvedQ} />
+        <SuspensionCorner hp={frontRHS_HP} solvedQ={frontRHS_Q} />
         {/* Front LHS (mirrored) */}
         <SuspensionCorner hp={frontLHS_HP} solvedQ={frontLHS_Q} />
         {/* Rear RHS */}
-        <SuspensionCorner hp={rearHP} solvedQ={rearSolvedQ} />
+        <SuspensionCorner hp={rearRHS_HP} solvedQ={rearRHS_Q} />
         {/* Rear LHS (mirrored) */}
         <SuspensionCorner hp={rearLHS_HP} solvedQ={rearLHS_Q} />
 
