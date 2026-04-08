@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Line, Html } from '@react-three/drei';
 import type { Hardpoints } from '../../model/types';
@@ -25,6 +26,96 @@ function LinkLine({ from, to, color, width = 2 }: { from: Vec3; to: Vec3; color:
     [from, to],
   );
   return <Line points={points} color={color} lineWidth={width} />;
+}
+
+const UPRIGHT_HALF_WIDTH = 30; // mm, half-width of the upright rectangle
+
+/**
+ * Upright rendered as a rectangle with width at UBJ and LBJ.
+ * The rectangle is centred on the kingpin axis and extends perpendicular
+ * to it in the upright plane (the plane defined by UBJ, LBJ, TRO).
+ * TRO connects to the rectangle via a separate steering arm line.
+ */
+function UprightRect({ ubj, lbj, tro }: { ubj: Vec3; lbj: Vec3; tro: Vec3 }) {
+  // Kingpin axis direction (in suspension coords)
+  const kpX = ubj[0] - lbj[0];
+  const kpY = ubj[1] - lbj[1];
+  const kpZ = ubj[2] - lbj[2];
+  const kpLen = Math.sqrt(kpX * kpX + kpY * kpY + kpZ * kpZ);
+  const kx = kpX / kpLen, ky = kpY / kpLen, kz = kpZ / kpLen;
+
+  // Vector from LBJ to TRO — use to define the upright plane
+  const tx = tro[0] - lbj[0], ty = tro[1] - lbj[1], tz = tro[2] - lbj[2];
+
+  // Component of (LBJ→TRO) perpendicular to kingpin = width direction
+  const projDot = tx * kx + ty * ky + tz * kz;
+  const perpX = tx - projDot * kx;
+  const perpY = ty - projDot * ky;
+  const perpZ = tz - projDot * kz;
+  const perpLen = Math.sqrt(perpX * perpX + perpY * perpY + perpZ * perpZ);
+  const wx = perpX / perpLen, wy = perpY / perpLen, wz = perpZ / perpLen;
+
+  // Four corners of the rectangle (in suspension coords)
+  const hw = UPRIGHT_HALF_WIDTH;
+  const corners: Vec3[] = [
+    [ubj[0] + wx * hw, ubj[1] + wy * hw, ubj[2] + wz * hw], // UBJ + width
+    [ubj[0] - wx * hw, ubj[1] - wy * hw, ubj[2] - wz * hw], // UBJ - width
+    [lbj[0] - wx * hw, lbj[1] - wy * hw, lbj[2] - wz * hw], // LBJ - width
+    [lbj[0] + wx * hw, lbj[1] + wy * hw, lbj[2] + wz * hw], // LBJ + width
+  ];
+
+  // Convert to Three.js coords (X, Z, -Y)
+  const to3 = (p: Vec3): THREE.Vector3 => new THREE.Vector3(p[0], p[2], -p[1]);
+  const c0 = to3(corners[0]), c1 = to3(corners[1]), c2 = to3(corners[2]), c3 = to3(corners[3]);
+
+  const geometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    const verts = new Float32Array([
+      // Two triangles for the quad
+      c0.x, c0.y, c0.z, c1.x, c1.y, c1.z, c2.x, c2.y, c2.z,
+      c0.x, c0.y, c0.z, c2.x, c2.y, c2.z, c3.x, c3.y, c3.z,
+    ]);
+    geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+    geo.computeVertexNormals();
+    return geo;
+  }, [c0.x, c0.y, c0.z, c1.x, c1.y, c1.z, c2.x, c2.y, c2.z, c3.x, c3.y, c3.z]);
+
+  const edgePoints: [number, number, number][] = [
+    [c0.x, c0.y, c0.z],
+    [c1.x, c1.y, c1.z],
+    [c2.x, c2.y, c2.z],
+    [c3.x, c3.y, c3.z],
+    [c0.x, c0.y, c0.z],
+  ];
+
+  // Steering arm: line from the midpoint of the nearest rectangle edge to TRO
+  const troP = to3(tro);
+  const ubjP = to3(ubj);
+  const lbjP = to3(lbj);
+
+  return (
+    <>
+      <mesh geometry={geometry}>
+        <meshStandardMaterial color="#ffcc00" opacity={0.3} transparent side={THREE.DoubleSide} />
+      </mesh>
+      <Line points={edgePoints} color="#ffcc00" lineWidth={2.5} />
+      {/* Kingpin axis centre line */}
+      <Line
+        points={[[ubjP.x, ubjP.y, ubjP.z], [lbjP.x, lbjP.y, lbjP.z]]}
+        color="#ffcc00"
+        lineWidth={1}
+      />
+      {/* Steering arm from upright to TRO */}
+      <Line
+        points={[
+          [(ubjP.x + lbjP.x) / 2, (ubjP.y + lbjP.y) / 2, (ubjP.z + lbjP.z) / 2],
+          [troP.x, troP.y, troP.z],
+        ]}
+        color="#ffaa00"
+        lineWidth={2}
+      />
+    </>
+  );
 }
 
 function GroundGrid() {
@@ -88,8 +179,8 @@ export const Viewport: React.FC<Props> = ({ hardpoints, solvedQ, travel }) => {
         <LinkLine from={hardpoints.LBIR} to={LBJ} color="#66ccff" width={1.5} />
         <LinkLine from={hardpoints.LBIF} to={hardpoints.LBIR} color="#4499aa" width={1.5} />
 
-        {/* Upright (kingpin) */}
-        <LinkLine from={LBJ} to={UBJ} color="#ffcc00" width={3} />
+        {/* Upright — rectangle with width at UBJ and LBJ */}
+        <UprightRect ubj={UBJ} lbj={LBJ} tro={TRO} />
 
         {/* Tie rod */}
         <LinkLine from={hardpoints.TRI} to={TRO} color="#ff6666" width={2} />
