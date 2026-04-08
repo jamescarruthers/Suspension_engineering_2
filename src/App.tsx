@@ -14,11 +14,17 @@ export default function App() {
 
   const result = useSolver(model, rackTravel);
 
-  // Find solved state for the current travel position (front and rear)
+  // Find solved state for the current travel position (front RHS, front LHS, rear)
   const currentFrontQ = useMemo(() => {
     if (!result) return null;
     const idx = result.frontSweep.outputs.findIndex(o => Math.abs(o.travel - travel) < 1.5);
     return idx >= 0 ? result.frontSweep.solvedStates[idx] : null;
+  }, [result, travel]);
+
+  const currentFrontLHS_Q = useMemo(() => {
+    if (!result) return null;
+    const idx = result.frontSweepLHS.outputs.findIndex(o => Math.abs(o.travel - travel) < 1.5);
+    return idx >= 0 ? result.frontSweepLHS.solvedStates[idx] : null;
   }, [result, travel]);
 
   const currentRearQ = useMemo(() => {
@@ -79,6 +85,7 @@ export default function App() {
         frontHP={model.front.hardpoints}
         rearHP={model.rear.hardpoints}
         frontSolvedQ={currentFrontQ}
+        frontSolvedQ_LHS={currentFrontLHS_Q}
         rearSolvedQ={currentRearQ}
         travel={travel}
         wheelbase={model.vehicle.wheelbase}

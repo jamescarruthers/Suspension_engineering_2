@@ -8,7 +8,8 @@ import type { Vec3 } from '../../math/Vec3';
 interface Props {
   frontHP: Hardpoints;
   rearHP: Hardpoints;
-  frontSolvedQ: number[] | null;
+  frontSolvedQ: number[] | null;       // Front RHS
+  frontSolvedQ_LHS: number[] | null;   // Front LHS (solved with negated rack)
   rearSolvedQ: number[] | null;
   travel: number;
   wheelbase: number; // mm, used to separate front/rear axles along X
@@ -238,7 +239,7 @@ function AxleLines({
   );
 }
 
-export const Viewport: React.FC<Props> = ({ frontHP, rearHP, frontSolvedQ, rearSolvedQ, travel, wheelbase }) => {
+export const Viewport: React.FC<Props> = ({ frontHP, rearHP, frontSolvedQ, frontSolvedQ_LHS, rearSolvedQ, travel, wheelbase }) => {
   // Offset: front at +wheelbase/2, rear at -wheelbase/2 so the car is centred at X=0
   const fDx = wheelbase / 2;
   const rDx = -wheelbase / 2;
@@ -251,9 +252,12 @@ export const Viewport: React.FC<Props> = ({ frontHP, rearHP, frontSolvedQ, rearS
   const rearRHS_HP = useMemo(() => offsetHardpointsX(rearHP, rDx), [rearHP, rDx]);
   const rearLHS_HP = useMemo(() => mirrorHardpoints(offsetHardpointsX(rearHP, rDx)), [rearHP, rDx]);
 
-  // Solved states (offset and mirror)
+  // Front RHS solved state: just offset X
   const frontRHS_Q = useMemo(() => frontSolvedQ ? offsetQX(frontSolvedQ, fDx) : null, [frontSolvedQ, fDx]);
-  const frontLHS_Q = useMemo(() => frontSolvedQ ? mirrorQ(offsetQX(frontSolvedQ, fDx)) : null, [frontSolvedQ, fDx]);
+  // Front LHS solved state: use the separately-solved LHS result (negated rack travel),
+  // then offset X and mirror Y so it displays on the left side
+  const frontLHS_Q = useMemo(() => frontSolvedQ_LHS ? mirrorQ(offsetQX(frontSolvedQ_LHS, fDx)) : null, [frontSolvedQ_LHS, fDx]);
+  // Rear: symmetric (no steering), mirror is fine
   const rearRHS_Q = useMemo(() => rearSolvedQ ? offsetQX(rearSolvedQ, rDx) : null, [rearSolvedQ, rDx]);
   const rearLHS_Q = useMemo(() => rearSolvedQ ? mirrorQ(offsetQX(rearSolvedQ, rDx)) : null, [rearSolvedQ, rDx]);
 
