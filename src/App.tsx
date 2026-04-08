@@ -14,12 +14,17 @@ export default function App() {
 
   const result = useSolver(model, rackTravel);
 
-  // Find solved state for the current travel position
-  const currentSolvedQ = useMemo(() => {
+  // Find solved state for the current travel position (front and rear)
+  const currentFrontQ = useMemo(() => {
     if (!result) return null;
-    const { frontSweep } = result;
-    const idx = frontSweep.outputs.findIndex(o => Math.abs(o.travel - travel) < 1.5);
-    return idx >= 0 ? frontSweep.solvedStates[idx] : null;
+    const idx = result.frontSweep.outputs.findIndex(o => Math.abs(o.travel - travel) < 1.5);
+    return idx >= 0 ? result.frontSweep.solvedStates[idx] : null;
+  }, [result, travel]);
+
+  const currentRearQ = useMemo(() => {
+    if (!result) return null;
+    const idx = result.rearSweep.outputs.findIndex(o => Math.abs(o.travel - travel) < 1.5);
+    return idx >= 0 ? result.rearSweep.solvedStates[idx] : null;
   }, [result, travel]);
 
   const handleExportCSV = useCallback(() => {
@@ -71,8 +76,10 @@ export default function App() {
       />
 
       <Viewport
-        hardpoints={model.front.hardpoints}
-        solvedQ={currentSolvedQ}
+        frontHP={model.front.hardpoints}
+        rearHP={model.rear.hardpoints}
+        frontSolvedQ={currentFrontQ}
+        rearSolvedQ={currentRearQ}
         travel={travel}
       />
 
