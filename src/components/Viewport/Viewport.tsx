@@ -81,30 +81,51 @@ function LinkLine({ from, to, color, width = 2 }: { from: Vec3; to: Vec3; color:
   return <Line points={points} color={color} lineWidth={width} />;
 }
 
-const UPRIGHT_HALF_WIDTH = 30;
+const UPRIGHT_UPPER_HW = 25; // mm, half-width at UBJ (fore-aft)
+const UPRIGHT_LOWER_HW = 35; // mm, half-width at LBJ (fore-aft, typically wider)
 
-function UprightRect({ ubj, lbj, tro }: { ubj: Vec3; lbj: Vec3; tro: Vec3 }) {
-  const kpX = ubj[0] - lbj[0];
-  const kpY = ubj[1] - lbj[1];
-  const kpZ = ubj[2] - lbj[2];
+/**
+ * Compute upright trapezoid corners. The width direction is the component of the
+ * fore-aft axis (X) perpendicular to the kingpin, so the front/rear edges align
+ * with the wishbone arm directions. Upper and lower can have different widths.
+ * Returns [upperFront, upperRear, lowerRear, lowerFront] in suspension coords.
+ */
+function uprightCorners(ubj: Vec3, lbj: Vec3): { corners: Vec3[]; widthDir: Vec3 } {
+  // Kingpin axis
+  const kpX = ubj[0] - lbj[0], kpY = ubj[1] - lbj[1], kpZ = ubj[2] - lbj[2];
   const kpLen = Math.sqrt(kpX * kpX + kpY * kpY + kpZ * kpZ);
   const kx = kpX / kpLen, ky = kpY / kpLen, kz = kpZ / kpLen;
 
-  const tx = tro[0] - lbj[0], ty = tro[1] - lbj[1], tz = tro[2] - lbj[2];
-  const projDot = tx * kx + ty * ky + tz * kz;
-  const perpX = tx - projDot * kx;
-  const perpY = ty - projDot * ky;
-  const perpZ = tz - projDot * kz;
-  const perpLen = Math.sqrt(perpX * perpX + perpY * perpY + perpZ * perpZ);
-  const wx = perpX / perpLen, wy = perpY / perpLen, wz = perpZ / perpLen;
+  // Width direction: component of global X-axis perpendicular to kingpin
+  // This aligns the upright width with the fore-aft direction (where UBIF/UBIR separate)
+  const xAxis: Vec3 = [1, 0, 0];
+  const projDot = xAxis[0] * kx + xAxis[1] * ky + xAxis[2] * kz;
+  let wx = xAxis[0] - projDot * kx;
+  let wy = xAxis[1] - projDot * ky;
+  let wz = xAxis[2] - projDot * kz;
+  const wLen = Math.sqrt(wx * wx + wy * wy + wz * wz);
+  if (wLen < 1e-6) {
+    // Kingpin is parallel to X — fall back to Z perpendicular component
+    wx = 0; wy = 0; wz = 1;
+  } else {
+    wx /= wLen; wy /= wLen; wz /= wLen;
+  }
 
-  const hw = UPRIGHT_HALF_WIDTH;
+  const uhw = UPRIGHT_UPPER_HW;
+  const lhw = UPRIGHT_LOWER_HW;
+
   const corners: Vec3[] = [
-    [ubj[0] + wx * hw, ubj[1] + wy * hw, ubj[2] + wz * hw],
-    [ubj[0] - wx * hw, ubj[1] - wy * hw, ubj[2] - wz * hw],
-    [lbj[0] - wx * hw, lbj[1] - wy * hw, lbj[2] - wz * hw],
-    [lbj[0] + wx * hw, lbj[1] + wy * hw, lbj[2] + wz * hw],
+    [ubj[0] + wx * uhw, ubj[1] + wy * uhw, ubj[2] + wz * uhw], // upper front
+    [ubj[0] - wx * uhw, ubj[1] - wy * uhw, ubj[2] - wz * uhw], // upper rear
+    [lbj[0] - wx * lhw, lbj[1] - wy * lhw, lbj[2] - wz * lhw], // lower rear
+    [lbj[0] + wx * lhw, lbj[1] + wy * lhw, lbj[2] + wz * lhw], // lower front
   ];
+
+  return { corners, widthDir: [wx, wy, wz] };
+}
+
+function UprightShape({ ubj, lbj, tro }: { ubj: Vec3; lbj: Vec3; tro: Vec3 }) {
+  const { corners } = uprightCorners(ubj, lbj);
 
   const to3 = (p: Vec3): THREE.Vector3 => new THREE.Vector3(p[0], p[2], -p[1]);
   const c0 = to3(corners[0]), c1 = to3(corners[1]), c2 = to3(corners[2]), c3 = to3(corners[3]);
@@ -134,7 +155,9 @@ function UprightRect({ ubj, lbj, tro }: { ubj: Vec3; lbj: Vec3; tro: Vec3 }) {
         <meshStandardMaterial color="#ffcc00" opacity={0.3} transparent side={THREE.DoubleSide} />
       </mesh>
       <Line points={edgePoints} color="#ffcc00" lineWidth={2.5} />
+      {/* Kingpin centre line */}
       <Line points={[[ubjP.x, ubjP.y, ubjP.z], [lbjP.x, lbjP.y, lbjP.z]]} color="#ffcc00" lineWidth={1} />
+      {/* Steering arm to TRO */}
       <Line
         points={[
           [(ubjP.x + lbjP.x) / 2, (ubjP.y + lbjP.y) / 2, (ubjP.z + lbjP.z) / 2],
@@ -146,11 +169,18 @@ function UprightRect({ ubj, lbj, tro }: { ubj: Vec3; lbj: Vec3; tro: Vec3 }) {
   );
 }
 
-/** One complete suspension corner: wishbones, upright, tie rod, spring, damper */
+/** One complete suspension corner: wishbones connect to upright edges, not central ball joints */
 function SuspensionCorner({ hp, solvedQ }: { hp: Hardpoints; solvedQ: number[] | null }) {
   const UBJ: Vec3 = solvedQ ? [solvedQ[0], solvedQ[1], solvedQ[2]] : hp.UBJ;
   const LBJ: Vec3 = solvedQ ? [solvedQ[3], solvedQ[4], solvedQ[5]] : hp.LBJ;
   const TRO: Vec3 = solvedQ ? [solvedQ[6], solvedQ[7], solvedQ[8]] : hp.TRO;
+
+  // Compute upright corners: [upperFront, upperRear, lowerRear, lowerFront]
+  const { corners } = uprightCorners(UBJ, LBJ);
+  const upperFront = corners[0];
+  const upperRear = corners[1];
+  const lowerRear = corners[2];
+  const lowerFront = corners[3];
 
   // SL/DL move with LBJ displacement
   const lbjDisp: Vec3 = [
@@ -173,22 +203,22 @@ function SuspensionCorner({ hp, solvedQ }: { hp: Hardpoints; solvedQ: number[] |
       <Sphere pos={hp.DU} color="#cc8844" size={4} />
 
       {/* Moving points */}
-      <Sphere pos={UBJ} color="#ffcc00" size={6} />
-      <Sphere pos={LBJ} color="#ffcc00" size={6} />
+      <Sphere pos={UBJ} color="#ffcc00" size={4} />
+      <Sphere pos={LBJ} color="#ffcc00" size={4} />
       <Sphere pos={TRO} color="#ffcc00" size={5} />
 
-      {/* Upper wishbone */}
-      <LinkLine from={hp.UBIF} to={UBJ} color="#6699ff" width={2.5} />
-      <LinkLine from={hp.UBIR} to={UBJ} color="#6699ff" width={2.5} />
+      {/* Upper wishbone: front arm → upper front edge, rear arm → upper rear edge */}
+      <LinkLine from={hp.UBIF} to={upperFront} color="#6699ff" width={2.5} />
+      <LinkLine from={hp.UBIR} to={upperRear} color="#6699ff" width={2.5} />
       <LinkLine from={hp.UBIF} to={hp.UBIR} color="#4477cc" width={1.5} />
 
-      {/* Lower wishbone */}
-      <LinkLine from={hp.LBIF} to={LBJ} color="#66ccff" width={2.5} />
-      <LinkLine from={hp.LBIR} to={LBJ} color="#66ccff" width={2.5} />
+      {/* Lower wishbone: front arm → lower front edge, rear arm → lower rear edge */}
+      <LinkLine from={hp.LBIF} to={lowerFront} color="#66ccff" width={2.5} />
+      <LinkLine from={hp.LBIR} to={lowerRear} color="#66ccff" width={2.5} />
       <LinkLine from={hp.LBIF} to={hp.LBIR} color="#4499aa" width={1.5} />
 
-      {/* Upright */}
-      <UprightRect ubj={UBJ} lbj={LBJ} tro={TRO} />
+      {/* Upright trapezoid */}
+      <UprightShape ubj={UBJ} lbj={LBJ} tro={TRO} />
 
       {/* Tie rod */}
       <LinkLine from={hp.TRI} to={TRO} color="#ff6666" width={2} />
