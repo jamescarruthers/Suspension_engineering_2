@@ -69,7 +69,7 @@ export const InputPanel: React.FC<Props> = ({
         >
           <option value="">-- select a preset --</option>
           {presets.map(p => (
-            <option key={p.id} value={p.id}>{p.label}</option>
+            <option key={p.id} value={p.id} title={p.description}>{p.label}</option>
           ))}
         </select>
       </div>
