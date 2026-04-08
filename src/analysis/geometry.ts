@@ -87,28 +87,33 @@ export function extractGeometryOutputs(
   ));
 
   // Camber: angle of wheel plane normal in YZ plane vs horizontal
-  // For RHS corner: outboard is -Y. Positive camber = top tilted outboard
-  const camber = Math.atan2(wheelPlaneNormal[2], -wheelPlaneNormal[1]) * RAD2DEG;
+  // SAE convention: positive camber = top of wheel tilted outboard
+  // For RHS corner: outboard is -Y, so positive camber tilts normal toward -Z
+  const camber = Math.atan2(-wheelPlaneNormal[2], -wheelPlaneNormal[1]) * RAD2DEG;
 
   // Toe: angle of wheel plane normal in XY plane
-  // Positive toe = toe-in (front of wheel toward centreline)
-  const toe = Math.atan2(-wheelPlaneNormal[0], -wheelPlaneNormal[1]) * RAD2DEG;
+  // SAE convention: positive toe = toe-in (front of wheel toward centreline)
+  // For RHS corner: toe-in rotates normal toward +X
+  const toe = Math.atan2(wheelPlaneNormal[0], -wheelPlaneNormal[1]) * RAD2DEG;
 
   // Caster: kingpin axis in side view (XZ), angle to vertical
+  // Positive caster = top of kingpin tilts rearward (-X)
   const caster = Math.atan2(-kingpin[0], kingpin[2]) * RAD2DEG;
 
   // KPI: kingpin axis in front view (YZ), angle to vertical
-  // For RHS corner: positive KPI means top of kingpin tilts inboard (+Y)
-  const kpi = Math.atan2(-kingpin[1], kingpin[2]) * RAD2DEG;
+  // SAE convention: positive KPI = top of kingpin tilts inboard (+Y for RHS)
+  const kpi = Math.atan2(kingpin[1], kingpin[2]) * RAD2DEG;
 
   // Kingpin ground intercept
   const kpGround = kingpinGroundIntercept(LBJ, UBJ);
 
-  // Scrub radius: lateral distance from kingpin ground intercept to CP, in front view
-  const scrubRadius = CP[1] - kpGround.frontViewY;
+  // Scrub radius: lateral offset from kingpin ground intercept to contact patch
+  // SAE convention: positive when kingpin intercept is inboard of contact patch
+  const scrubRadius = kpGround.frontViewY - CP[1];
 
   // Mechanical trail: longitudinal distance from kingpin ground intercept to CP
-  const mechanicalTrail = CP[0] - kpGround.sideViewX;
+  // SAE convention: positive when contact patch is behind (rearward of) kingpin intercept
+  const mechanicalTrail = kpGround.sideViewX - CP[0];
 
   // Instant centre (front view) — intersection of wishbone lines in YZ plane
   // Upper arm line: midpoint of UBIF/UBIR inner pivots → UBJ

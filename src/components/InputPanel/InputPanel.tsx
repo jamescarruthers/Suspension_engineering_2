@@ -4,6 +4,12 @@ import { HardpointEditor } from './HardpointEditor';
 import { NumberInput } from '../common/NumberInput';
 import { TabBar } from '../common/TabBar';
 
+interface PresetOption {
+  id: string;
+  label: string;
+  description: string;
+}
+
 interface Props {
   model: SuspensionModel;
   onChange: (model: SuspensionModel) => void;
@@ -14,13 +20,15 @@ interface Props {
   onExportCSV: () => void;
   onExportJSON: () => void;
   onImportJSON: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  presets: PresetOption[];
+  onLoadPreset: (id: string) => void;
 }
 
 const TABS = ['Front HP', 'Rear HP', 'Vehicle', 'Springs', 'Dampers'];
 
 export const InputPanel: React.FC<Props> = ({
   model, onChange, travel, onTravelChange, rackTravel, onRackTravelChange,
-  onExportCSV, onExportJSON, onImportJSON,
+  onExportCSV, onExportJSON, onImportJSON, presets, onLoadPreset,
 }) => {
   const [tab, setTab] = useState(0);
 
@@ -41,6 +49,29 @@ export const InputPanel: React.FC<Props> = ({
     }}>
       <div style={{ fontWeight: 700, fontSize: 14, color: '#fff', marginBottom: 4 }}>
         Suspension Kinematics
+      </div>
+
+      {/* Example presets */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 4 }}>
+        <div style={{ fontSize: 11, color: '#aaa' }}>Load Example</div>
+        <select
+          value=""
+          onChange={e => { if (e.target.value) onLoadPreset(e.target.value); }}
+          style={{
+            width: '100%',
+            padding: '4px 6px',
+            fontSize: 11,
+            background: '#2a2a2a',
+            color: '#ccc',
+            border: '1px solid #555',
+            borderRadius: 3,
+          }}
+        >
+          <option value="">-- select a preset --</option>
+          {presets.map(p => (
+            <option key={p.id} value={p.id}>{p.label}</option>
+          ))}
+        </select>
       </div>
 
       {/* Travel sliders */}
