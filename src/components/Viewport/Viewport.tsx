@@ -343,22 +343,16 @@ function SuspensionCorner({ hp, solvedQ, uprightSpec, tyreRadius }: {
   const TRO: Vec3 = solvedQ ? [solvedQ[6], solvedQ[7], solvedQ[8]] : hp.TRO;
 
   // Precompute stub axle local direction from STATIC hardpoints.
-  // Outboard direction depends on which side the corner is on (sign of Y).
-  // The stub axle must be perpendicular to the kingpin axis, so we project
-  // the outboard direction onto the plane perpendicular to the kingpin,
-  // then express it in the upright's local frame.
+  // The stub axle is fixed to the upright body — at static it points
+  // horizontal outboard, and rotates rigidly with the upright.
   const stubAxleDir0_local = useMemo(() => {
     const frame = computeUprightFrame(hp.UBJ, hp.LBJ, hp.TRO);
     // Outboard = away from centreline: -Y for RHS, +Y for LHS
     const outboard: Vec3 = hp.UBJ[1] < 0 ? [0, -1, 0] : [0, 1, 0];
-    // Project outboard perpendicular to kingpin (e1) so stub axle stays
-    // exactly perpendicular to the kingpin axis at all travel positions
-    const along = dot(outboard, frame.e1);
-    const perp: Vec3 = normalize(sub(outboard, scale(frame.e1, along)));
     return [
-      dot(perp, frame.e1),
-      dot(perp, frame.e2),
-      dot(perp, frame.e3),
+      dot(outboard, frame.e1),
+      dot(outboard, frame.e2),
+      dot(outboard, frame.e3),
     ] as Vec3;
   }, [hp.UBJ[0], hp.UBJ[1], hp.UBJ[2], hp.LBJ[0], hp.LBJ[1], hp.LBJ[2], hp.TRO[0], hp.TRO[1], hp.TRO[2]]);
 
