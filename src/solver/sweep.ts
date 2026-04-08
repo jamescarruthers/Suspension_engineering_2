@@ -1,8 +1,10 @@
 import type { Hardpoints, UprightSpec, GeometryOutputs } from '../model/types';
+import type { Vec3 } from '../math/Vec3';
 import { createConstraintContext } from './constraints';
 import { solve } from './newton';
 import { extractGeometryOutputs } from '../analysis/geometry';
 import { dist } from '../math/Vec3';
+import { rotatePointWithWishbone } from './wishboneRotation';
 
 export interface SweepConfig {
   minTravel: number;  // mm, negative = droop
@@ -84,25 +86,14 @@ export function runSweep(
   for (let i = 0; i < allResults.length; i++) {
     const { travel, q } = allResults[i];
 
-    // Compute spring/damper lengths from solved upright
-    // SL and DL move with the lower wishbone. Approximate by rigid-body displacement.
-    // For more accuracy, we'd need to track which arm SL/DL attach to.
-    // Simple approach: SL moves with LBJ's displacement from static
-    const lbjDisp = [
-      q[3] - hardpoints.LBJ[0],
-      q[4] - hardpoints.LBJ[1],
-      q[5] - hardpoints.LBJ[2],
-    ];
-    const SL_moved: [number, number, number] = [
-      hardpoints.SL[0] + lbjDisp[0],
-      hardpoints.SL[1] + lbjDisp[1],
-      hardpoints.SL[2] + lbjDisp[2],
-    ];
-    const DL_moved: [number, number, number] = [
-      hardpoints.DL[0] + lbjDisp[0],
-      hardpoints.DL[1] + lbjDisp[1],
-      hardpoints.DL[2] + lbjDisp[2],
-    ];
+    // SL and DL are on the lower wishbone — rotate with it about the LBIF–LBIR axis
+    const LBJ_solved: Vec3 = [q[3], q[4], q[5]];
+    const SL_moved = rotatePointWithWishbone(
+      hardpoints.SL, hardpoints.LBJ, LBJ_solved, hardpoints.LBIF, hardpoints.LBIR,
+    );
+    const DL_moved = rotatePointWithWishbone(
+      hardpoints.DL, hardpoints.LBJ, LBJ_solved, hardpoints.LBIF, hardpoints.LBIR,
+    );
 
     const springLen = dist(hardpoints.SU, SL_moved);
     const damperLen = dist(hardpoints.DU, DL_moved);
@@ -114,37 +105,13 @@ export function runSweep(
       const prev = allResults[i - 1];
       const next = allResults[i + 1];
 
-      const prevLbjDisp = [
-        prev.q[3] - hardpoints.LBJ[0],
-        prev.q[4] - hardpoints.LBJ[1],
-        prev.q[5] - hardpoints.LBJ[2],
-      ];
-      const nextLbjDisp = [
-        next.q[3] - hardpoints.LBJ[0],
-        next.q[4] - hardpoints.LBJ[1],
-        next.q[5] - hardpoints.LBJ[2],
-      ];
+      const prevLBJ: Vec3 = [prev.q[3], prev.q[4], prev.q[5]];
+      const nextLBJ: Vec3 = [next.q[3], next.q[4], next.q[5]];
 
-      const prevSL: [number, number, number] = [
-        hardpoints.SL[0] + prevLbjDisp[0],
-        hardpoints.SL[1] + prevLbjDisp[1],
-        hardpoints.SL[2] + prevLbjDisp[2],
-      ];
-      const nextSL: [number, number, number] = [
-        hardpoints.SL[0] + nextLbjDisp[0],
-        hardpoints.SL[1] + nextLbjDisp[1],
-        hardpoints.SL[2] + nextLbjDisp[2],
-      ];
-      const prevDL: [number, number, number] = [
-        hardpoints.DL[0] + prevLbjDisp[0],
-        hardpoints.DL[1] + prevLbjDisp[1],
-        hardpoints.DL[2] + prevLbjDisp[2],
-      ];
-      const nextDL: [number, number, number] = [
-        hardpoints.DL[0] + nextLbjDisp[0],
-        hardpoints.DL[1] + nextLbjDisp[1],
-        hardpoints.DL[2] + nextLbjDisp[2],
-      ];
+      const prevSL = rotatePointWithWishbone(hardpoints.SL, hardpoints.LBJ, prevLBJ, hardpoints.LBIF, hardpoints.LBIR);
+      const nextSL = rotatePointWithWishbone(hardpoints.SL, hardpoints.LBJ, nextLBJ, hardpoints.LBIF, hardpoints.LBIR);
+      const prevDL = rotatePointWithWishbone(hardpoints.DL, hardpoints.LBJ, prevLBJ, hardpoints.LBIF, hardpoints.LBIR);
+      const nextDL = rotatePointWithWishbone(hardpoints.DL, hardpoints.LBJ, nextLBJ, hardpoints.LBIF, hardpoints.LBIR);
 
       const prevSpringLen = dist(hardpoints.SU, prevSL);
       const nextSpringLen = dist(hardpoints.SU, nextSL);

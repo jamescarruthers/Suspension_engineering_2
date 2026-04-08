@@ -4,6 +4,7 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Line, Html } from '@react-three/drei';
 import type { Hardpoints } from '../../model/types';
 import type { Vec3 } from '../../math/Vec3';
+import { rotatePointWithWishbone } from '../../solver/wishboneRotation';
 
 interface Props {
   frontHP: Hardpoints;
@@ -182,14 +183,9 @@ function SuspensionCorner({ hp, solvedQ }: { hp: Hardpoints; solvedQ: number[] |
   const lowerRear = corners[2];
   const lowerFront = corners[3];
 
-  // SL/DL move with LBJ displacement
-  const lbjDisp: Vec3 = [
-    LBJ[0] - hp.LBJ[0],
-    LBJ[1] - hp.LBJ[1],
-    LBJ[2] - hp.LBJ[2],
-  ];
-  const SL: Vec3 = [hp.SL[0] + lbjDisp[0], hp.SL[1] + lbjDisp[1], hp.SL[2] + lbjDisp[2]];
-  const DL: Vec3 = [hp.DL[0] + lbjDisp[0], hp.DL[1] + lbjDisp[1], hp.DL[2] + lbjDisp[2]];
+  // SL/DL rotate with the lower wishbone about the LBIF–LBIR axis
+  const SL = rotatePointWithWishbone(hp.SL, hp.LBJ, LBJ, hp.LBIF, hp.LBIR);
+  const DL = rotatePointWithWishbone(hp.DL, hp.LBJ, LBJ, hp.LBIF, hp.LBIR);
 
   return (
     <>
