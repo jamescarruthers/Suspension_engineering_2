@@ -2,18 +2,26 @@ import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Line, Html } from '@react-three/drei';
-import type { Hardpoints } from '../../model/types';
+import type { Hardpoints, UprightSpec } from '../../model/types';
 import type { Vec3 } from '../../math/Vec3';
+import { add, sub, scale, dot, cross, normalize, lerp } from '../../math/Vec3';
 import { rotatePointWithWishbone } from '../../solver/wishboneRotation';
+import { computeStubAxleLocalDir, computeUprightFrame, deriveWheelCentre } from '../../solver/upright';
+
+interface CornerSpec {
+  hp: Hardpoints;
+  upright: UprightSpec;
+  tyreRadius: number;
+}
 
 interface Props {
-  frontHP: Hardpoints;
-  rearHP: Hardpoints;
-  frontSolvedQ: number[] | null;       // Front RHS
-  frontSolvedQ_LHS: number[] | null;   // Front LHS (solved with negated rack)
+  frontCorner: CornerSpec;
+  rearCorner: CornerSpec;
+  frontSolvedQ: number[] | null;
+  frontSolvedQ_LHS: number[] | null;
   rearSolvedQ: number[] | null;
   travel: number;
-  wheelbase: number; // mm, used to separate front/rear axles along X
+  wheelbase: number;
 }
 
 /** Mirror a Vec3 across the Y=0 plane (RHS→LHS in ISO 8855) */
@@ -170,8 +178,166 @@ function UprightShape({ ubj, lbj, tro }: { ubj: Vec3; lbj: Vec3; tro: Vec3 }) {
   );
 }
 
-/** One complete suspension corner: wishbones connect to upright edges, not central ball joints */
-function SuspensionCorner({ hp, solvedQ }: { hp: Hardpoints; solvedQ: number[] | null }) {
+/**
+ * Wheel assembly: stub axle line, rim circle, tyre circle.
+ * Derives WC from the upright pose using the stub axle model.
+ */
+function WheelAssembly({ ubj, lbj, tro, uprightSpec, tyreRadius }: {
+  ubj: Vec3; lbj: Vec3; tro: Vec3;
+  uprightSpec: UprightSpec;
+  tyreRadius: number;
+}) {
+  const stubAxleDir0_local = useMemo(
+    () => computeStubAxleLocalDir(ubj, lbj, tro),
+    // Recompute only when the geometry changes substantially — but since these
+    // change every travel step, we just recompute each render (cheap).
+    [ubj[0], ubj[1], ubj[2], lbj[0], lbj[1], lbj[2], tro[0], tro[1], tro[2]],
+  );
+
+  // Stub axle origin: point along kingpin axis
+  const stubOrigin = lerp(lbj, ubj, uprightSpec.stubAxleRatio);
+
+  // Rebuild upright frame to get stub axle direction in global coords
+  const frame = computeUprightFrame(ubj, lbj, tro);
+  const stubDir = normalize(add(
+    scale(frame.e1, stubAxleDir0_local[0]),
+    add(scale(frame.e2, stubAxleDir0_local[1]), scale(frame.e3, stubAxleDir0_local[2])),
+  ));
+
+  // Hub face = end of stub axle
+  const hubFace = add(stubOrigin, scale(stubDir, uprightSpec.stubAxleLength));
+
+  // Wheel centre = hub face minus ET along stub axle direction
+  const WC = sub(hubFace, scale(stubDir, uprightSpec.wheelOffset));
+
+  // Contact patch (directly below WC)
+  const CP: Vec3 = [WC[0], WC[1], 0];
+
+  // Convert to Three.js coords (X=X, Y=Z, Z=-Y)
+  const to3 = (p: Vec3): [number, number, number] => [p[0], p[2], -p[1]];
+
+  const stubOrigin3 = to3(stubOrigin);
+  const hubFace3 = to3(hubFace);
+  const wc3 = to3(WC);
+  const cp3 = to3(CP);
+
+  // Stub axle direction in Three.js space
+  const stubDir3 = new THREE.Vector3(stubDir[0], stubDir[2], -stubDir[1]).normalize();
+
+  // Quaternion to rotate a circle (default normal = Z) to face along stubDir
+  const quaternion = useMemo(() => {
+    const q = new THREE.Quaternion();
+    q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), stubDir3);
+    return q;
+  }, [stubDir3.x, stubDir3.y, stubDir3.z]);
+
+  const rimRadius = tyreRadius * 0.45; // visual approximation of rim size
+  const tyreWidth = 205; // mm, visual tyre width
+
+  // Generate circle points for rim and tyre
+  const rimPoints = useMemo(() => {
+    const pts: [number, number, number][] = [];
+    const segments = 32;
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      const localPt = new THREE.Vector3(
+        Math.cos(angle) * rimRadius,
+        Math.sin(angle) * rimRadius,
+        0,
+      );
+      localPt.applyQuaternion(quaternion);
+      pts.push([wc3[0] + localPt.x, wc3[1] + localPt.y, wc3[2] + localPt.z]);
+    }
+    return pts;
+  }, [wc3[0], wc3[1], wc3[2], rimRadius, quaternion]);
+
+  const tyrePoints = useMemo(() => {
+    const pts: [number, number, number][] = [];
+    const segments = 32;
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      const localPt = new THREE.Vector3(
+        Math.cos(angle) * tyreRadius,
+        Math.sin(angle) * tyreRadius,
+        0,
+      );
+      localPt.applyQuaternion(quaternion);
+      pts.push([wc3[0] + localPt.x, wc3[1] + localPt.y, wc3[2] + localPt.z]);
+    }
+    return pts;
+  }, [wc3[0], wc3[1], wc3[2], tyreRadius, quaternion]);
+
+  // Tyre sidewall inner edge (offset along stub axle by half tyre width)
+  const halfWidth = tyreWidth / 2;
+  const tyreInnerPoints = useMemo(() => {
+    const offset = stubDir3.clone().multiplyScalar(halfWidth);
+    return tyrePoints.map(p => [p[0] + offset.x, p[1] + offset.y, p[2] + offset.z] as [number, number, number]);
+  }, [tyrePoints, stubDir3, halfWidth]);
+
+  const tyreOuterPoints = useMemo(() => {
+    const offset = stubDir3.clone().multiplyScalar(-halfWidth);
+    return tyrePoints.map(p => [p[0] + offset.x, p[1] + offset.y, p[2] + offset.z] as [number, number, number]);
+  }, [tyrePoints, stubDir3, halfWidth]);
+
+  // Spoke lines (4 spokes) connecting hub to rim
+  const spokePoints = useMemo(() => {
+    const spokes: [number, number, number][][] = [];
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2;
+      const localPt = new THREE.Vector3(
+        Math.cos(angle) * rimRadius,
+        Math.sin(angle) * rimRadius,
+        0,
+      );
+      localPt.applyQuaternion(quaternion);
+      spokes.push([
+        wc3,
+        [wc3[0] + localPt.x, wc3[1] + localPt.y, wc3[2] + localPt.z],
+      ]);
+    }
+    return spokes;
+  }, [wc3, rimRadius, quaternion]);
+
+  return (
+    <>
+      {/* Stub axle: line from kingpin to hub face */}
+      <Line points={[stubOrigin3, hubFace3]} color="#cc8800" lineWidth={3} />
+
+      {/* Hub / wheel centre marker */}
+      <mesh position={wc3}>
+        <sphereGeometry args={[6, 10, 10]} />
+        <meshStandardMaterial color="#cc8800" />
+      </mesh>
+
+      {/* Rim circle */}
+      <Line points={rimPoints} color="#999999" lineWidth={1.5} />
+
+      {/* Spokes */}
+      {spokePoints.map((pts, i) => (
+        <Line key={`spoke-${i}`} points={pts} color="#888888" lineWidth={1} />
+      ))}
+
+      {/* Tyre outer and inner sidewalls */}
+      <Line points={tyreOuterPoints} color="#555555" lineWidth={2} />
+      <Line points={tyreInnerPoints} color="#555555" lineWidth={2} />
+
+      {/* Tyre tread (at WC position, same as tyrePoints) — the main tyre circle */}
+      <Line points={tyrePoints} color="#444444" lineWidth={2.5} />
+
+      {/* Contact patch marker */}
+      <mesh position={cp3}>
+        <sphereGeometry args={[5, 8, 8]} />
+        <meshStandardMaterial color="#ff4444" />
+      </mesh>
+    </>
+  );
+}
+
+/** One complete suspension corner: wishbones, upright, wheel assembly */
+function SuspensionCorner({ hp, solvedQ, uprightSpec, tyreRadius }: {
+  hp: Hardpoints; solvedQ: number[] | null;
+  uprightSpec: UprightSpec; tyreRadius: number;
+}) {
   const UBJ: Vec3 = solvedQ ? [solvedQ[0], solvedQ[1], solvedQ[2]] : hp.UBJ;
   const LBJ: Vec3 = solvedQ ? [solvedQ[3], solvedQ[4], solvedQ[5]] : hp.LBJ;
   const TRO: Vec3 = solvedQ ? [solvedQ[6], solvedQ[7], solvedQ[8]] : hp.TRO;
@@ -224,6 +390,9 @@ function SuspensionCorner({ hp, solvedQ }: { hp: Hardpoints; solvedQ: number[] |
 
       {/* Damper */}
       <LinkLine from={hp.DU} to={DL} color="#cc8844" width={2} />
+
+      {/* Stub axle, wheel rim, tyre */}
+      <WheelAssembly ubj={UBJ} lbj={LBJ} tro={TRO} uprightSpec={uprightSpec} tyreRadius={tyreRadius} />
     </>
   );
 }
@@ -265,10 +434,12 @@ function AxleLines({
   );
 }
 
-export const Viewport: React.FC<Props> = ({ frontHP, rearHP, frontSolvedQ, frontSolvedQ_LHS, rearSolvedQ, travel, wheelbase }) => {
-  // Offset: front at +wheelbase/2, rear at -wheelbase/2 so the car is centred at X=0
+export const Viewport: React.FC<Props> = ({ frontCorner, rearCorner, frontSolvedQ, frontSolvedQ_LHS, rearSolvedQ, travel, wheelbase }) => {
   const fDx = wheelbase / 2;
   const rDx = -wheelbase / 2;
+
+  const frontHP = frontCorner.hp;
+  const rearHP = rearCorner.hp;
 
   // Front RHS/LHS hardpoints (offset along X)
   const frontRHS_HP = useMemo(() => offsetHardpointsX(frontHP, fDx), [frontHP, fDx]);
@@ -278,12 +449,9 @@ export const Viewport: React.FC<Props> = ({ frontHP, rearHP, frontSolvedQ, front
   const rearRHS_HP = useMemo(() => offsetHardpointsX(rearHP, rDx), [rearHP, rDx]);
   const rearLHS_HP = useMemo(() => mirrorHardpoints(offsetHardpointsX(rearHP, rDx)), [rearHP, rDx]);
 
-  // Front RHS solved state: just offset X
+  // Solved states
   const frontRHS_Q = useMemo(() => frontSolvedQ ? offsetQX(frontSolvedQ, fDx) : null, [frontSolvedQ, fDx]);
-  // Front LHS solved state: use the separately-solved LHS result (negated rack travel),
-  // then offset X and mirror Y so it displays on the left side
   const frontLHS_Q = useMemo(() => frontSolvedQ_LHS ? mirrorQ(offsetQX(frontSolvedQ_LHS, fDx)) : null, [frontSolvedQ_LHS, fDx]);
-  // Rear: symmetric (no steering), mirror is fine
   const rearRHS_Q = useMemo(() => rearSolvedQ ? offsetQX(rearSolvedQ, rDx) : null, [rearSolvedQ, rDx]);
   const rearLHS_Q = useMemo(() => rearSolvedQ ? mirrorQ(offsetQX(rearSolvedQ, rDx)) : null, [rearSolvedQ, rDx]);
 
@@ -292,12 +460,15 @@ export const Viewport: React.FC<Props> = ({ frontHP, rearHP, frontSolvedQ, front
   const flLBJ = mirrorY(frLBJ);
   const rrLBJ: Vec3 = rearRHS_Q ? [rearRHS_Q[3], rearRHS_Q[4], rearRHS_Q[5]] : rearRHS_HP.LBJ;
   const rlLBJ = mirrorY(rrLBJ);
-
-  // Dummy values for unused axle line props
   const frUBJ: Vec3 = frontRHS_Q ? [frontRHS_Q[0], frontRHS_Q[1], frontRHS_Q[2]] : frontRHS_HP.UBJ;
   const flUBJ = mirrorY(frUBJ);
   const rrUBJ: Vec3 = rearRHS_Q ? [rearRHS_Q[0], rearRHS_Q[1], rearRHS_Q[2]] : rearRHS_HP.UBJ;
   const rlUBJ = mirrorY(rrUBJ);
+
+  const fUpright = frontCorner.upright;
+  const rUpright = rearCorner.upright;
+  const fTyreR = frontCorner.tyreRadius;
+  const rTyreR = rearCorner.tyreRadius;
 
   return (
     <div style={{ flex: 1, background: '#111' }}>
@@ -311,16 +482,11 @@ export const Viewport: React.FC<Props> = ({ frontHP, rearHP, frontSolvedQ, front
 
         <GroundGrid />
 
-        {/* Front RHS */}
-        <SuspensionCorner hp={frontRHS_HP} solvedQ={frontRHS_Q} />
-        {/* Front LHS (mirrored) */}
-        <SuspensionCorner hp={frontLHS_HP} solvedQ={frontLHS_Q} />
-        {/* Rear RHS */}
-        <SuspensionCorner hp={rearRHS_HP} solvedQ={rearRHS_Q} />
-        {/* Rear LHS (mirrored) */}
-        <SuspensionCorner hp={rearLHS_HP} solvedQ={rearLHS_Q} />
+        <SuspensionCorner hp={frontRHS_HP} solvedQ={frontRHS_Q} uprightSpec={fUpright} tyreRadius={fTyreR} />
+        <SuspensionCorner hp={frontLHS_HP} solvedQ={frontLHS_Q} uprightSpec={fUpright} tyreRadius={fTyreR} />
+        <SuspensionCorner hp={rearRHS_HP} solvedQ={rearRHS_Q} uprightSpec={rUpright} tyreRadius={rTyreR} />
+        <SuspensionCorner hp={rearLHS_HP} solvedQ={rearLHS_Q} uprightSpec={rUpright} tyreRadius={rTyreR} />
 
-        {/* Axle reference lines */}
         <AxleLines
           frontRHS_UBJ={frUBJ} frontLHS_UBJ={flUBJ}
           frontRHS_LBJ={frLBJ} frontLHS_LBJ={flLBJ}
