@@ -94,8 +94,8 @@ export default function App() {
       />
 
       <Viewport
-        frontHP={model.front.hardpoints}
-        rearHP={model.rear.hardpoints}
+        frontCorner={{ hp: model.front.hardpoints, upright: model.front.upright, tyreRadius: model.vehicle.tyreRadius }}
+        rearCorner={{ hp: model.rear.hardpoints, upright: model.rear.upright, tyreRadius: model.vehicle.tyreRadius }}
         frontSolvedQ={currentFrontQ}
         frontSolvedQ_LHS={currentFrontLHS_Q}
         rearSolvedQ={currentRearQ}
