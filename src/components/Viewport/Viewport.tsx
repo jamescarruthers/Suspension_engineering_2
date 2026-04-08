@@ -181,23 +181,23 @@ function UprightShape({ ubj, lbj, tro }: { ubj: Vec3; lbj: Vec3; tro: Vec3 }) {
 /**
  * Wheel assembly: stub axle line, rim circle, tyre circle.
  * Derives WC from the upright pose using the stub axle model.
+ *
+ * stubAxleDir0_local must be precomputed from the STATIC hardpoints —
+ * it encodes the outboard direction in the upright's local frame.
+ * The current solved UBJ/LBJ/TRO are used only to rebuild the
+ * current frame and transform that local direction into global coords.
  */
-function WheelAssembly({ ubj, lbj, tro, uprightSpec, tyreRadius }: {
+function WheelAssembly({ ubj, lbj, tro, uprightSpec, tyreRadius, stubAxleDir0_local }: {
   ubj: Vec3; lbj: Vec3; tro: Vec3;
   uprightSpec: UprightSpec;
   tyreRadius: number;
+  stubAxleDir0_local: Vec3;
 }) {
-  const stubAxleDir0_local = useMemo(
-    () => computeStubAxleLocalDir(ubj, lbj, tro),
-    // Recompute only when the geometry changes substantially — but since these
-    // change every travel step, we just recompute each render (cheap).
-    [ubj[0], ubj[1], ubj[2], lbj[0], lbj[1], lbj[2], tro[0], tro[1], tro[2]],
-  );
-
   // Stub axle origin: point along kingpin axis
   const stubOrigin = lerp(lbj, ubj, uprightSpec.stubAxleRatio);
 
-  // Rebuild upright frame to get stub axle direction in global coords
+  // Rebuild upright frame from CURRENT solved positions to get stub axle
+  // direction in global coords — the local direction was frozen at init
   const frame = computeUprightFrame(ubj, lbj, tro);
   const stubDir = normalize(add(
     scale(frame.e1, stubAxleDir0_local[0]),
@@ -342,6 +342,14 @@ function SuspensionCorner({ hp, solvedQ, uprightSpec, tyreRadius }: {
   const LBJ: Vec3 = solvedQ ? [solvedQ[3], solvedQ[4], solvedQ[5]] : hp.LBJ;
   const TRO: Vec3 = solvedQ ? [solvedQ[6], solvedQ[7], solvedQ[8]] : hp.TRO;
 
+  // Precompute stub axle local direction from STATIC hardpoints (frozen at init).
+  // This captures the outboard direction in the upright's reference frame and
+  // must NOT be recomputed from solved positions or the rotation cancels out.
+  const stubAxleDir0_local = useMemo(
+    () => computeStubAxleLocalDir(hp.UBJ, hp.LBJ, hp.TRO),
+    [hp.UBJ[0], hp.UBJ[1], hp.UBJ[2], hp.LBJ[0], hp.LBJ[1], hp.LBJ[2], hp.TRO[0], hp.TRO[1], hp.TRO[2]],
+  );
+
   // Compute upright corners: [upperFront, upperRear, lowerRear, lowerFront]
   const { corners } = uprightCorners(UBJ, LBJ);
   const upperFront = corners[0];
@@ -392,7 +400,7 @@ function SuspensionCorner({ hp, solvedQ, uprightSpec, tyreRadius }: {
       <LinkLine from={hp.DU} to={DL} color="#cc8844" width={2} />
 
       {/* Stub axle, wheel rim, tyre */}
-      <WheelAssembly ubj={UBJ} lbj={LBJ} tro={TRO} uprightSpec={uprightSpec} tyreRadius={tyreRadius} />
+      <WheelAssembly ubj={UBJ} lbj={LBJ} tro={TRO} uprightSpec={uprightSpec} tyreRadius={tyreRadius} stubAxleDir0_local={stubAxleDir0_local} />
     </>
   );
 }
