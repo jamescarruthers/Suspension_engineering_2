@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Line, Html } from '@react-three/drei';
 import type { Hardpoints } from '../../model/types';
@@ -25,6 +26,47 @@ function LinkLine({ from, to, color, width = 2 }: { from: Vec3; to: Vec3; color:
     [from, to],
   );
   return <Line points={points} color={color} lineWidth={width} />;
+}
+
+/** Upright rendered as a filled triangle (UBJ–LBJ–TRO) with outline edges */
+function UprightTriangle({ ubj, lbj, tro }: { ubj: Vec3; lbj: Vec3; tro: Vec3 }) {
+  // Convert to Three.js coords (X, Z, -Y)
+  const a = new THREE.Vector3(ubj[0], ubj[2], -ubj[1]);
+  const b = new THREE.Vector3(lbj[0], lbj[2], -lbj[1]);
+  const c = new THREE.Vector3(tro[0], tro[2], -tro[1]);
+
+  const geometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    // Two-sided triangle: vertices for both winding orders
+    const verts = new Float32Array([
+      a.x, a.y, a.z,
+      b.x, b.y, b.z,
+      c.x, c.y, c.z,
+      // reverse winding for back face
+      a.x, a.y, a.z,
+      c.x, c.y, c.z,
+      b.x, b.y, b.z,
+    ]);
+    geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+    geo.computeVertexNormals();
+    return geo;
+  }, [a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z]);
+
+  const edgePoints: [number, number, number][] = [
+    [a.x, a.y, a.z],
+    [b.x, b.y, b.z],
+    [c.x, c.y, c.z],
+    [a.x, a.y, a.z],
+  ];
+
+  return (
+    <>
+      <mesh geometry={geometry}>
+        <meshStandardMaterial color="#ffcc00" opacity={0.25} transparent side={THREE.DoubleSide} />
+      </mesh>
+      <Line points={edgePoints} color="#ffcc00" lineWidth={2.5} />
+    </>
+  );
 }
 
 function GroundGrid() {
@@ -88,8 +130,8 @@ export const Viewport: React.FC<Props> = ({ hardpoints, solvedQ, travel }) => {
         <LinkLine from={hardpoints.LBIR} to={LBJ} color="#66ccff" width={1.5} />
         <LinkLine from={hardpoints.LBIF} to={hardpoints.LBIR} color="#4499aa" width={1.5} />
 
-        {/* Upright (kingpin) */}
-        <LinkLine from={LBJ} to={UBJ} color="#ffcc00" width={3} />
+        {/* Upright — triangular frame with visible area */}
+        <UprightTriangle ubj={UBJ} lbj={LBJ} tro={TRO} />
 
         {/* Tie rod */}
         <LinkLine from={hardpoints.TRI} to={TRO} color="#ff6666" width={2} />
