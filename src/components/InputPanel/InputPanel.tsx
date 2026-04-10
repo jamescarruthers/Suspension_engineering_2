@@ -128,11 +128,15 @@ export const InputPanel: React.FC<Props> = ({
             <NumberInput label="Stub%" value={model.front.upright.stubAxleRatio} step={0.01} onChange={v => update({ front: { ...model.front, upright: { ...model.front.upright, stubAxleRatio: v } } })} />
             <NumberInput label="StubL" value={model.front.upright.stubAxleLength} onChange={v => update({ front: { ...model.front, upright: { ...model.front.upright, stubAxleLength: v } } })} unit="mm" />
             <NumberInput label="ET" value={model.front.upright.wheelOffset} onChange={v => update({ front: { ...model.front, upright: { ...model.front.upright, wheelOffset: v } } })} unit="mm" />
+            <NumberInput label="Camber" value={model.front.upright.stubAxleCamber} step={0.1} onChange={v => update({ front: { ...model.front, upright: { ...model.front.upright, stubAxleCamber: v } } })} unit="deg" />
+            <NumberInput label="Caster" value={model.front.upright.stubAxleCaster} step={0.1} onChange={v => update({ front: { ...model.front, upright: { ...model.front.upright, stubAxleCaster: v } } })} unit="deg" />
 
             <div style={{ fontWeight: 600, color: '#6cf', marginTop: 8 }}>Upright (Rear)</div>
             <NumberInput label="Stub%" value={model.rear.upright.stubAxleRatio} step={0.01} onChange={v => update({ rear: { ...model.rear, upright: { ...model.rear.upright, stubAxleRatio: v } } })} />
             <NumberInput label="StubL" value={model.rear.upright.stubAxleLength} onChange={v => update({ rear: { ...model.rear, upright: { ...model.rear.upright, stubAxleLength: v } } })} unit="mm" />
             <NumberInput label="ET" value={model.rear.upright.wheelOffset} onChange={v => update({ rear: { ...model.rear, upright: { ...model.rear.upright, wheelOffset: v } } })} unit="mm" />
+            <NumberInput label="Camber" value={model.rear.upright.stubAxleCamber} step={0.1} onChange={v => update({ rear: { ...model.rear, upright: { ...model.rear.upright, stubAxleCamber: v } } })} unit="deg" />
+            <NumberInput label="Caster" value={model.rear.upright.stubAxleCaster} step={0.1} onChange={v => update({ rear: { ...model.rear, upright: { ...model.rear.upright, stubAxleCaster: v } } })} unit="deg" />
 
             <div style={{ fontWeight: 600, color: '#6cf', marginTop: 8 }}>Anti-Roll Bars</div>
             <NumberInput label="ARB F" value={model.arbFront.rate} onChange={v => update({ arbFront: { rate: v } })} unit="N/mm" />

@@ -15,8 +15,32 @@ export function computeUprightFrame(UBJ: Vec3, LBJ: Vec3, TRO: Vec3): UprightFra
   return { e1, e2, e3 };
 }
 
-export function computeStubAxleLocalDir(UBJ0: Vec3, LBJ0: Vec3, TRO0: Vec3): Vec3 {
+export function computeStubAxleLocalDir(UBJ0: Vec3, LBJ0: Vec3, TRO0: Vec3, camberDeg: number, casterDeg: number): Vec3 {
   const frame = computeUprightFrame(UBJ0, LBJ0, TRO0);
+
+  // Start from horizontal outboard for RHS: [0, -1, 0]. Apply static camber
+  // (about global X) then caster (about global Z). Store the resulting direction
+  // in the upright's local frame so it rotates rigidly with the upright. Keep
+  // the component along the kingpin axis (e1) — projecting it away would
+  // incorrectly force static camber to equal -KPI.
+  const camRad = -camberDeg * Math.PI / 180; // negative camber tilts the top inboard
+  const casRad = casterDeg * Math.PI / 180;  // positive caster tilts the stub axle forward (+X)
+
+  // After camber rotation about X: Y' = Y*cos - Z*sin, Z' = Y*sin + Z*cos
+  const y1 = -Math.cos(camRad);
+  const z1 = -Math.sin(camRad);
+
+  // After caster rotation about Z: X' = -Y'*sin, Y' = Y'*cos
+  const x2 = -y1 * Math.sin(casRad);
+  const y2 = y1 * Math.cos(casRad);
+  const z2 = z1;
+
+  const stubDir: Vec3 = [x2, y2, z2];
+
+  return [
+    dot(stubDir, frame.e1),
+    dot(stubDir, frame.e2),
+    dot(stubDir, frame.e3),
   // The stub axle direction in the global frame at static is [0, -1, 0]
   // (outboard for RHS). We store this in the upright's local frame so it
   // rotates correctly with the mechanism during travel.

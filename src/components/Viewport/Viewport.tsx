@@ -343,24 +343,31 @@ function SuspensionCorner({ hp, solvedQ, uprightSpec, tyreRadius }: {
   const TRO: Vec3 = solvedQ ? [solvedQ[6], solvedQ[7], solvedQ[8]] : hp.TRO;
 
   // Precompute stub axle local direction from STATIC hardpoints.
-  // Outboard direction depends on which side the corner is on (sign of Y).
-  // The stub axle must be perpendicular to the kingpin axis, so we project
-  // the outboard direction onto the plane perpendicular to the kingpin,
-  // then express it in the upright's local frame.
+  // The stub axle angles (camber/caster) define the static orientation.
+  // For LHS corners (positive Y), negate the camber to mirror correctly.
+  const isLHS = hp.UBJ[1] > 0;
   const stubAxleDir0_local = useMemo(() => {
     const frame = computeUprightFrame(hp.UBJ, hp.LBJ, hp.TRO);
-    // Outboard = away from centreline: -Y for RHS, +Y for LHS
-    const outboard: Vec3 = hp.UBJ[1] < 0 ? [0, -1, 0] : [0, 1, 0];
-    // Project outboard perpendicular to kingpin (e1) so stub axle stays
-    // exactly perpendicular to the kingpin axis at all travel positions
-    const along = dot(outboard, frame.e1);
-    const perp: Vec3 = normalize(sub(outboard, scale(frame.e1, along)));
+    // Compute the tilted stub axle direction from angles
+    // For LHS, camber sign flips (mirrored), caster stays the same
+    const camRad = -(isLHS ? -uprightSpec.stubAxleCamber : uprightSpec.stubAxleCamber) * Math.PI / 180;
+    const casRad = uprightSpec.stubAxleCaster * Math.PI / 180;
+    // Start from outboard: [0, -1, 0] for RHS, [0, +1, 0] for LHS
+    const oy = isLHS ? 1 : -1;
+    // Camber rotation about X: Y' = Y*cos - Z*sin, Z' = Y*sin + Z*cos
+    const y1 = oy * Math.cos(camRad);
+    const z1 = oy * Math.sin(camRad);
+    // Caster rotation about Z: X' = -Y'*sin, Y' = Y'*cos
+    const x2 = -y1 * Math.sin(casRad);
+    const y2 = y1 * Math.cos(casRad);
+    const z2 = z1;
+    const stubDir: Vec3 = [x2, y2, z2];
     return [
-      dot(perp, frame.e1),
-      dot(perp, frame.e2),
-      dot(perp, frame.e3),
+      dot(stubDir, frame.e1),
+      dot(stubDir, frame.e2),
+      dot(stubDir, frame.e3),
     ] as Vec3;
-  }, [hp.UBJ[0], hp.UBJ[1], hp.UBJ[2], hp.LBJ[0], hp.LBJ[1], hp.LBJ[2], hp.TRO[0], hp.TRO[1], hp.TRO[2]]);
+  }, [hp.UBJ[0], hp.UBJ[1], hp.UBJ[2], hp.LBJ[0], hp.LBJ[1], hp.LBJ[2], hp.TRO[0], hp.TRO[1], hp.TRO[2], uprightSpec.stubAxleCamber, uprightSpec.stubAxleCaster, isLHS]);
 
   // Compute upright corners: [upperFront, upperRear, lowerRear, lowerFront]
   const { corners } = uprightCorners(UBJ, LBJ);

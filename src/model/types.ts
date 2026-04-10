@@ -13,6 +13,8 @@ export interface UprightSpec {
   stubAxleRatio: number;   // 0–1, position along kingpin (0=LBJ, 1=UBJ)
   stubAxleLength: number;  // mm
   wheelOffset: number;     // mm (ET)
+  stubAxleCamber: number;  // deg, static camber angle — negative = top-in
+  stubAxleCaster: number;  // deg, static caster angle — positive = stub axle tilts forward (+X)
 }
 
 export interface VehicleParams {

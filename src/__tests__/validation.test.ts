@@ -82,6 +82,8 @@ describe('RACE Software Demo Model', () => {
     stubAxleRatio: 0.303,
     stubAxleLength: 80,
     wheelOffset: 14.85,
+    stubAxleCamber: 0,
+    stubAxleCaster: 0,
   };
 
   const TYRE_RADIUS = 300;
@@ -199,6 +201,8 @@ describe('OptimumG FSAE Front Suspension', () => {
     stubAxleRatio: 0.453,
     stubAxleLength: 70,
     wheelOffset: 15.6,
+    stubAxleCamber: 0,
+    stubAxleCaster: 0,
   };
 
   const TYRE_RADIUS = 230;
@@ -287,6 +291,8 @@ describe('Default model sanity checks', () => {
     stubAxleRatio: 0.85,
     stubAxleLength: 50,
     wheelOffset: 35,
+    stubAxleCamber: -1.5,
+    stubAxleCaster: 6,
   };
 
   const TYRE_RADIUS = 310;
@@ -382,7 +388,7 @@ describe('Internal consistency: RC from FVSA angle', () => {
       DU: [-30, -380, 560] as Vec3,
       DL: [-30, -640, 190] as Vec3,
     });
-    const upright: UprightSpec = { stubAxleRatio: 0.85, stubAxleLength: 50, wheelOffset: 35 };
+    const upright: UprightSpec = { stubAxleRatio: 0.85, stubAxleLength: 50, wheelOffset: 35, stubAxleCamber: -1.5, stubAxleCaster: 6 };
     const tyreR = 310;
 
     const ctx = createConstraintContext(hp, upright, tyreR);
