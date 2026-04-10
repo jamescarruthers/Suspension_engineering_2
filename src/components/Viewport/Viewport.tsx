@@ -2,11 +2,12 @@ import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Line, Html } from '@react-three/drei';
-import type { Hardpoints, UprightSpec } from '../../model/types';
+import type { Hardpoints, HardpointId, UprightSpec } from '../../model/types';
 import type { Vec3 } from '../../math/Vec3';
 import { add, sub, scale, dot, cross, normalize, lerp } from '../../math/Vec3';
 import { rotatePointWithWishbone } from '../../solver/wishboneRotation';
 import { computeStubAxleLocalDir, computeUprightFrame, deriveWheelCentre } from '../../solver/upright';
+import type { FocusedHardpoint } from '../InputPanel/InputPanel';
 
 interface CornerSpec {
   hp: Hardpoints;
@@ -22,6 +23,7 @@ interface Props {
   rearSolvedQ: number[] | null;
   travel: number;
   wheelbase: number;
+  focusedHardpoint: FocusedHardpoint | null;
 }
 
 /** Mirror a Vec3 across the Y=0 plane (RHS→LHS in ISO 8855) */
@@ -70,12 +72,37 @@ function offsetQX(q: number[], dx: number): number[] {
   ];
 }
 
-function Sphere({ pos, color, size = 4 }: { pos: Vec3; color: string; size?: number }) {
+function Sphere({ pos, color, size = 4, highlight, label }: {
+  pos: Vec3; color: string; size?: number; highlight?: boolean; label?: string;
+}) {
+  const position: [number, number, number] = [pos[0], pos[2], -pos[1]];
   return (
-    <mesh position={[pos[0], pos[2], -pos[1]]}>
-      <sphereGeometry args={[size, 12, 12]} />
-      <meshStandardMaterial color={color} />
-    </mesh>
+    <group position={position}>
+      <mesh>
+        <sphereGeometry args={[highlight ? size * 2.5 : size, 12, 12]} />
+        <meshStandardMaterial
+          color={highlight ? '#ff3333' : color}
+          emissive={highlight ? '#ff3333' : '#000000'}
+          emissiveIntensity={highlight ? 0.8 : 0}
+        />
+      </mesh>
+      {highlight && label && (
+        <Html center style={{ pointerEvents: 'none' }}>
+          <div style={{
+            background: 'rgba(255, 50, 50, 0.85)',
+            color: '#fff',
+            padding: '2px 6px',
+            borderRadius: 3,
+            fontSize: 11,
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+            transform: 'translateY(-20px)',
+          }}>
+            {label}
+          </div>
+        </Html>
+      )}
+    </group>
   );
 }
 
@@ -334,9 +361,10 @@ function WheelAssembly({ ubj, lbj, tro, uprightSpec, tyreRadius, stubAxleDir0_lo
 }
 
 /** One complete suspension corner: wishbones, upright, wheel assembly */
-function SuspensionCorner({ hp, solvedQ, uprightSpec, tyreRadius }: {
+function SuspensionCorner({ hp, solvedQ, uprightSpec, tyreRadius, highlightId }: {
   hp: Hardpoints; solvedQ: number[] | null;
   uprightSpec: UprightSpec; tyreRadius: number;
+  highlightId: HardpointId | null;
 }) {
   const UBJ: Vec3 = solvedQ ? [solvedQ[0], solvedQ[1], solvedQ[2]] : hp.UBJ;
   const LBJ: Vec3 = solvedQ ? [solvedQ[3], solvedQ[4], solvedQ[5]] : hp.LBJ;
@@ -383,18 +411,20 @@ function SuspensionCorner({ hp, solvedQ, uprightSpec, tyreRadius }: {
   return (
     <>
       {/* Fixed points (chassis) */}
-      <Sphere pos={hp.UBIF} color="#4488ff" size={5} />
-      <Sphere pos={hp.UBIR} color="#4488ff" size={5} />
-      <Sphere pos={hp.LBIF} color="#4488ff" size={5} />
-      <Sphere pos={hp.LBIR} color="#4488ff" size={5} />
-      <Sphere pos={hp.TRI} color="#4488ff" size={4} />
-      <Sphere pos={hp.SU} color="#44aa44" size={4} />
-      <Sphere pos={hp.DU} color="#cc8844" size={4} />
+      <Sphere pos={hp.UBIF} color="#4488ff" size={5} highlight={highlightId === 'UBIF'} label="UBIF" />
+      <Sphere pos={hp.UBIR} color="#4488ff" size={5} highlight={highlightId === 'UBIR'} label="UBIR" />
+      <Sphere pos={hp.LBIF} color="#4488ff" size={5} highlight={highlightId === 'LBIF'} label="LBIF" />
+      <Sphere pos={hp.LBIR} color="#4488ff" size={5} highlight={highlightId === 'LBIR'} label="LBIR" />
+      <Sphere pos={hp.TRI} color="#4488ff" size={4} highlight={highlightId === 'TRI'} label="TRI" />
+      <Sphere pos={hp.SU} color="#44aa44" size={4} highlight={highlightId === 'SU'} label="SU" />
+      <Sphere pos={hp.DU} color="#cc8844" size={4} highlight={highlightId === 'DU'} label="DU" />
 
       {/* Moving points */}
-      <Sphere pos={UBJ} color="#ffcc00" size={4} />
-      <Sphere pos={LBJ} color="#ffcc00" size={4} />
-      <Sphere pos={TRO} color="#ffcc00" size={5} />
+      <Sphere pos={UBJ} color="#ffcc00" size={4} highlight={highlightId === 'UBJ'} label="UBJ" />
+      <Sphere pos={LBJ} color="#ffcc00" size={4} highlight={highlightId === 'LBJ'} label="LBJ" />
+      <Sphere pos={TRO} color="#ffcc00" size={5} highlight={highlightId === 'TRO'} label="TRO" />
+      <Sphere pos={SL} color="#44aa44" size={4} highlight={highlightId === 'SL'} label="SL" />
+      <Sphere pos={DL} color="#cc8844" size={4} highlight={highlightId === 'DL'} label="DL" />
 
       {/* Upper wishbone: front arm → upper front edge, rear arm → upper rear edge */}
       <LinkLine from={hp.UBIF} to={upperFront} color="#6699ff" width={2.5} />
@@ -461,7 +491,7 @@ function AxleLines({
   );
 }
 
-export const Viewport: React.FC<Props> = ({ frontCorner, rearCorner, frontSolvedQ, frontSolvedQ_LHS, rearSolvedQ, travel, wheelbase }) => {
+export const Viewport: React.FC<Props> = ({ frontCorner, rearCorner, frontSolvedQ, frontSolvedQ_LHS, rearSolvedQ, travel, wheelbase, focusedHardpoint }) => {
   const fDx = wheelbase / 2;
   const rDx = -wheelbase / 2;
 
@@ -509,10 +539,10 @@ export const Viewport: React.FC<Props> = ({ frontCorner, rearCorner, frontSolved
 
         <GroundGrid />
 
-        <SuspensionCorner hp={frontRHS_HP} solvedQ={frontRHS_Q} uprightSpec={fUpright} tyreRadius={fTyreR} />
-        <SuspensionCorner hp={frontLHS_HP} solvedQ={frontLHS_Q} uprightSpec={fUpright} tyreRadius={fTyreR} />
-        <SuspensionCorner hp={rearRHS_HP} solvedQ={rearRHS_Q} uprightSpec={rUpright} tyreRadius={rTyreR} />
-        <SuspensionCorner hp={rearLHS_HP} solvedQ={rearLHS_Q} uprightSpec={rUpright} tyreRadius={rTyreR} />
+        <SuspensionCorner hp={frontRHS_HP} solvedQ={frontRHS_Q} uprightSpec={fUpright} tyreRadius={fTyreR} highlightId={focusedHardpoint?.corner === 'front' ? focusedHardpoint.id : null} />
+        <SuspensionCorner hp={frontLHS_HP} solvedQ={frontLHS_Q} uprightSpec={fUpright} tyreRadius={fTyreR} highlightId={focusedHardpoint?.corner === 'front' ? focusedHardpoint.id : null} />
+        <SuspensionCorner hp={rearRHS_HP} solvedQ={rearRHS_Q} uprightSpec={rUpright} tyreRadius={rTyreR} highlightId={focusedHardpoint?.corner === 'rear' ? focusedHardpoint.id : null} />
+        <SuspensionCorner hp={rearLHS_HP} solvedQ={rearLHS_Q} uprightSpec={rUpright} tyreRadius={rTyreR} highlightId={focusedHardpoint?.corner === 'rear' ? focusedHardpoint.id : null} />
 
         <AxleLines
           frontRHS_UBJ={frUBJ} frontLHS_UBJ={flUBJ}

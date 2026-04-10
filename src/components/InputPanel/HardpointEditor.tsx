@@ -27,9 +27,10 @@ interface Props {
   hardpoints: Hardpoints;
   onChange: (hp: Hardpoints) => void;
   label: string;
+  onFocusPoint?: (id: HardpointId | null) => void;
 }
 
-export const HardpointEditor: React.FC<Props> = ({ hardpoints, onChange, label }) => {
+export const HardpointEditor: React.FC<Props> = ({ hardpoints, onChange, label, onFocusPoint }) => {
   const handleChange = (id: HardpointId, axis: 0 | 1 | 2, val: string) => {
     const n = parseFloat(val);
     if (isNaN(n)) return;
@@ -61,6 +62,8 @@ export const HardpointEditor: React.FC<Props> = ({ hardpoints, onChange, label }
                     type="number"
                     value={hardpoints[id][axis]}
                     onChange={e => handleChange(id, axis, e.target.value)}
+                    onFocus={() => onFocusPoint?.(id)}
+                    onBlur={() => onFocusPoint?.(null)}
                     style={{
                       width: '100%',
                       fontFamily: 'monospace',
