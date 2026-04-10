@@ -103,6 +103,7 @@ function createRaceSoftwareModel(): SuspensionModel {
 
   // DERIVED — see header comment for derivation
   const upright = { stubAxleRatio: 0.303, stubAxleLength: 80, wheelOffset: 14.85, stubAxleCamber: 0, stubAxleCaster: 0 };
+  const upright = { stubAxleRatio: 0.303, stubAxleLength: 80, wheelOffset: 14.85 };
 
   return {
     front: makeCorner(frontHP, upright,
@@ -200,7 +201,7 @@ function createOptimumGFSAEModel(): SuspensionModel {
   // DERIVED — see header comment for derivation from half-track 525 mm
   const frontUpright = { stubAxleRatio: 0.453, stubAxleLength: 70, wheelOffset: 15.6, stubAxleCamber: 0, stubAxleCaster: 0 };
   const rearUpright = { stubAxleRatio: 0.453, stubAxleLength: 75, wheelOffset: 14, stubAxleCamber: 0, stubAxleCaster: 0 };
-
+  
   return {
     front: makeCorner(frontHP, frontUpright,
       { rate: 26, freeLength: 200, preload: 100 }),   // rate from benchmark
