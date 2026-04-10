@@ -3,7 +3,7 @@ import type { SuspensionModel } from './model/types';
 import { createDefaultModel } from './model/defaults';
 import { PRESETS } from './model/presets';
 import { useSolver } from './hooks/useSolver';
-import { InputPanel } from './components/InputPanel/InputPanel';
+import { InputPanel, type FocusedHardpoint } from './components/InputPanel/InputPanel';
 import { Viewport } from './components/Viewport/Viewport';
 import { ChartsPanel } from './components/Charts/ChartsPanel';
 import { exportCSV, exportModelJSON, downloadFile } from './utils/export';
@@ -12,6 +12,14 @@ export default function App() {
   const [model, setModel] = useState<SuspensionModel>(createDefaultModel);
   const [travel, setTravel] = useState(0);
   const [rackTravel, setRackTravel] = useState(0);
+  const [focusedHP, setFocusedHP] = useState<FocusedHardpoint | null>(null);
+  const [clickedHP, setClickedHP] = useState<FocusedHardpoint | null>(null);
+
+  const handleClickHardpoint = useCallback((hp: FocusedHardpoint) => {
+    setFocusedHP(hp);
+    // Use a new object each time to re-trigger the useEffect in HardpointEditor
+    setClickedHP({ ...hp });
+  }, []);
 
   const result = useSolver(model, rackTravel);
 
@@ -91,6 +99,8 @@ export default function App() {
         onImportJSON={handleImportJSON}
         presets={PRESETS}
         onLoadPreset={handleLoadPreset}
+        onFocusHardpoint={setFocusedHP}
+        selectedHardpoint={clickedHP}
       />
 
       <Viewport
@@ -101,6 +111,8 @@ export default function App() {
         rearSolvedQ={currentRearQ}
         travel={travel}
         wheelbase={model.vehicle.wheelbase}
+        focusedHardpoint={focusedHP}
+        onClickHardpoint={handleClickHardpoint}
       />
 
       <ChartsPanel

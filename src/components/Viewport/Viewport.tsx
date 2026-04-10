@@ -2,11 +2,12 @@ import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Line, Html } from '@react-three/drei';
-import type { Hardpoints, UprightSpec } from '../../model/types';
+import type { Hardpoints, HardpointId, UprightSpec } from '../../model/types';
 import type { Vec3 } from '../../math/Vec3';
 import { add, sub, scale, dot, cross, normalize, lerp } from '../../math/Vec3';
 import { rotatePointWithWishbone } from '../../solver/wishboneRotation';
 import { computeStubAxleLocalDir, computeUprightFrame, deriveWheelCentre } from '../../solver/upright';
+import type { FocusedHardpoint } from '../InputPanel/InputPanel';
 
 interface CornerSpec {
   hp: Hardpoints;
@@ -22,6 +23,8 @@ interface Props {
   rearSolvedQ: number[] | null;
   travel: number;
   wheelbase: number;
+  focusedHardpoint: FocusedHardpoint | null;
+  onClickHardpoint?: (hp: FocusedHardpoint) => void;
 }
 
 /** Mirror a Vec3 across the Y=0 plane (RHS→LHS in ISO 8855) */
@@ -70,12 +73,46 @@ function offsetQX(q: number[], dx: number): number[] {
   ];
 }
 
-function Sphere({ pos, color, size = 4 }: { pos: Vec3; color: string; size?: number }) {
+function Sphere({ pos, color, size = 4, highlight, label, onClick }: {
+  pos: Vec3; color: string; size?: number; highlight?: boolean; label?: string;
+  onClick?: () => void;
+}) {
+  const position: [number, number, number] = [pos[0], pos[2], -pos[1]];
+  const hitSize = Math.max(size * 2, 12); // larger invisible hit area for easy clicking
   return (
-    <mesh position={[pos[0], pos[2], -pos[1]]}>
-      <sphereGeometry args={[size, 12, 12]} />
-      <meshStandardMaterial color={color} />
-    </mesh>
+    <group position={position}>
+      <mesh>
+        <sphereGeometry args={[highlight ? size * 2.5 : size, 12, 12]} />
+        <meshStandardMaterial
+          color={highlight ? '#ff3333' : color}
+          emissive={highlight ? '#ff3333' : '#000000'}
+          emissiveIntensity={highlight ? 0.8 : 0}
+        />
+      </mesh>
+      {/* Invisible larger sphere for easier click targeting */}
+      {onClick && (
+        <mesh onClick={e => { e.stopPropagation(); onClick(); }}>
+          <sphereGeometry args={[hitSize, 8, 8]} />
+          <meshBasicMaterial transparent opacity={0} />
+        </mesh>
+      )}
+      {highlight && label && (
+        <Html center style={{ pointerEvents: 'none' }}>
+          <div style={{
+            background: 'rgba(255, 50, 50, 0.85)',
+            color: '#fff',
+            padding: '2px 6px',
+            borderRadius: 3,
+            fontSize: 11,
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+            transform: 'translateY(-20px)',
+          }}>
+            {label}
+          </div>
+        </Html>
+      )}
+    </group>
   );
 }
 
@@ -334,9 +371,11 @@ function WheelAssembly({ ubj, lbj, tro, uprightSpec, tyreRadius, stubAxleDir0_lo
 }
 
 /** One complete suspension corner: wishbones, upright, wheel assembly */
-function SuspensionCorner({ hp, solvedQ, uprightSpec, tyreRadius }: {
+function SuspensionCorner({ hp, solvedQ, uprightSpec, tyreRadius, highlightId, onClickPoint }: {
   hp: Hardpoints; solvedQ: number[] | null;
   uprightSpec: UprightSpec; tyreRadius: number;
+  highlightId: HardpointId | null;
+  onClickPoint?: (id: HardpointId) => void;
 }) {
   const UBJ: Vec3 = solvedQ ? [solvedQ[0], solvedQ[1], solvedQ[2]] : hp.UBJ;
   const LBJ: Vec3 = solvedQ ? [solvedQ[3], solvedQ[4], solvedQ[5]] : hp.LBJ;
@@ -383,18 +422,20 @@ function SuspensionCorner({ hp, solvedQ, uprightSpec, tyreRadius }: {
   return (
     <>
       {/* Fixed points (chassis) */}
-      <Sphere pos={hp.UBIF} color="#4488ff" size={5} />
-      <Sphere pos={hp.UBIR} color="#4488ff" size={5} />
-      <Sphere pos={hp.LBIF} color="#4488ff" size={5} />
-      <Sphere pos={hp.LBIR} color="#4488ff" size={5} />
-      <Sphere pos={hp.TRI} color="#4488ff" size={4} />
-      <Sphere pos={hp.SU} color="#44aa44" size={4} />
-      <Sphere pos={hp.DU} color="#cc8844" size={4} />
+      <Sphere pos={hp.UBIF} color="#4488ff" size={5} highlight={highlightId === 'UBIF'} label="UBIF" onClick={onClickPoint && (() => onClickPoint('UBIF'))} />
+      <Sphere pos={hp.UBIR} color="#4488ff" size={5} highlight={highlightId === 'UBIR'} label="UBIR" onClick={onClickPoint && (() => onClickPoint('UBIR'))} />
+      <Sphere pos={hp.LBIF} color="#4488ff" size={5} highlight={highlightId === 'LBIF'} label="LBIF" onClick={onClickPoint && (() => onClickPoint('LBIF'))} />
+      <Sphere pos={hp.LBIR} color="#4488ff" size={5} highlight={highlightId === 'LBIR'} label="LBIR" onClick={onClickPoint && (() => onClickPoint('LBIR'))} />
+      <Sphere pos={hp.TRI} color="#4488ff" size={4} highlight={highlightId === 'TRI'} label="TRI" onClick={onClickPoint && (() => onClickPoint('TRI'))} />
+      <Sphere pos={hp.SU} color="#44aa44" size={4} highlight={highlightId === 'SU'} label="SU" onClick={onClickPoint && (() => onClickPoint('SU'))} />
+      <Sphere pos={hp.DU} color="#cc8844" size={4} highlight={highlightId === 'DU'} label="DU" onClick={onClickPoint && (() => onClickPoint('DU'))} />
 
       {/* Moving points */}
-      <Sphere pos={UBJ} color="#ffcc00" size={4} />
-      <Sphere pos={LBJ} color="#ffcc00" size={4} />
-      <Sphere pos={TRO} color="#ffcc00" size={5} />
+      <Sphere pos={UBJ} color="#ffcc00" size={4} highlight={highlightId === 'UBJ'} label="UBJ" onClick={onClickPoint && (() => onClickPoint('UBJ'))} />
+      <Sphere pos={LBJ} color="#ffcc00" size={4} highlight={highlightId === 'LBJ'} label="LBJ" onClick={onClickPoint && (() => onClickPoint('LBJ'))} />
+      <Sphere pos={TRO} color="#ffcc00" size={5} highlight={highlightId === 'TRO'} label="TRO" onClick={onClickPoint && (() => onClickPoint('TRO'))} />
+      <Sphere pos={SL} color="#44aa44" size={4} highlight={highlightId === 'SL'} label="SL" onClick={onClickPoint && (() => onClickPoint('SL'))} />
+      <Sphere pos={DL} color="#cc8844" size={4} highlight={highlightId === 'DL'} label="DL" onClick={onClickPoint && (() => onClickPoint('DL'))} />
 
       {/* Upper wishbone: front arm → upper front edge, rear arm → upper rear edge */}
       <LinkLine from={hp.UBIF} to={upperFront} color="#6699ff" width={2.5} />
@@ -461,7 +502,7 @@ function AxleLines({
   );
 }
 
-export const Viewport: React.FC<Props> = ({ frontCorner, rearCorner, frontSolvedQ, frontSolvedQ_LHS, rearSolvedQ, travel, wheelbase }) => {
+export const Viewport: React.FC<Props> = ({ frontCorner, rearCorner, frontSolvedQ, frontSolvedQ_LHS, rearSolvedQ, travel, wheelbase, focusedHardpoint, onClickHardpoint }) => {
   const fDx = wheelbase / 2;
   const rDx = -wheelbase / 2;
 
@@ -509,10 +550,10 @@ export const Viewport: React.FC<Props> = ({ frontCorner, rearCorner, frontSolved
 
         <GroundGrid />
 
-        <SuspensionCorner hp={frontRHS_HP} solvedQ={frontRHS_Q} uprightSpec={fUpright} tyreRadius={fTyreR} />
-        <SuspensionCorner hp={frontLHS_HP} solvedQ={frontLHS_Q} uprightSpec={fUpright} tyreRadius={fTyreR} />
-        <SuspensionCorner hp={rearRHS_HP} solvedQ={rearRHS_Q} uprightSpec={rUpright} tyreRadius={rTyreR} />
-        <SuspensionCorner hp={rearLHS_HP} solvedQ={rearLHS_Q} uprightSpec={rUpright} tyreRadius={rTyreR} />
+        <SuspensionCorner hp={frontRHS_HP} solvedQ={frontRHS_Q} uprightSpec={fUpright} tyreRadius={fTyreR} highlightId={focusedHardpoint?.corner === 'front' ? focusedHardpoint.id : null} onClickPoint={onClickHardpoint && (id => onClickHardpoint({ corner: 'front', id }))} />
+        <SuspensionCorner hp={frontLHS_HP} solvedQ={frontLHS_Q} uprightSpec={fUpright} tyreRadius={fTyreR} highlightId={focusedHardpoint?.corner === 'front' ? focusedHardpoint.id : null} />
+        <SuspensionCorner hp={rearRHS_HP} solvedQ={rearRHS_Q} uprightSpec={rUpright} tyreRadius={rTyreR} highlightId={focusedHardpoint?.corner === 'rear' ? focusedHardpoint.id : null} onClickPoint={onClickHardpoint && (id => onClickHardpoint({ corner: 'rear', id }))} />
+        <SuspensionCorner hp={rearLHS_HP} solvedQ={rearLHS_Q} uprightSpec={rUpright} tyreRadius={rTyreR} highlightId={focusedHardpoint?.corner === 'rear' ? focusedHardpoint.id : null} />
 
         <AxleLines
           frontRHS_UBJ={frUBJ} frontLHS_UBJ={flUBJ}
