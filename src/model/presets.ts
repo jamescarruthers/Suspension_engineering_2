@@ -103,7 +103,6 @@ function createRaceSoftwareModel(): SuspensionModel {
 
   // DERIVED — see header comment for derivation
   const upright = { stubAxleRatio: 0.303, stubAxleLength: 80, wheelOffset: 14.85, stubAxleCamber: 0, stubAxleCaster: 0 };
-  const upright = { stubAxleRatio: 0.303, stubAxleLength: 80, wheelOffset: 14.85 };
 
   return {
     front: makeCorner(frontHP, upright,

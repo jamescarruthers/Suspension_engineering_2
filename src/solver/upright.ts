@@ -41,20 +41,6 @@ export function computeStubAxleLocalDir(UBJ0: Vec3, LBJ0: Vec3, TRO0: Vec3, camb
     dot(stubDir, frame.e1),
     dot(stubDir, frame.e2),
     dot(stubDir, frame.e3),
-  // The stub axle direction in the global frame at static is [0, -1, 0]
-  // (outboard for RHS). We store this in the upright's local frame so it
-  // rotates correctly with the mechanism during travel.
-  //
-  // The local representation SHOULD include the component along e1 (the
-  // kingpin axis). This component encodes the angle between the stub axle
-  // and the kingpin — which is how a real upright sets static camber
-  // independently of KPI. Removing it (projecting perpendicular to the
-  // kingpin) would force static camber to equal -KPI, which is wrong.
-  const outboard: Vec3 = [0, -1, 0];
-  return [
-    dot(outboard, frame.e1),
-    dot(outboard, frame.e2),
-    dot(outboard, frame.e3),
   ];
 }
 
