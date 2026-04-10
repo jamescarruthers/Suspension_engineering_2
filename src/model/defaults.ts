@@ -50,7 +50,7 @@ function makeCorner(hp: Record<string, Vec3>): CornerSetup {
       stubAxleLength: 50,
       wheelOffset: 35,
       stubAxleCamber: -1.5,  // deg, slight negative camber
-      stubAxleCaster: 6,     // deg, positive = rearward tilt
+      stubAxleCaster: 6,     // deg, positive tilts stub axle forward (+X)
     },
     spring: {
       rate: 30,        // N/mm

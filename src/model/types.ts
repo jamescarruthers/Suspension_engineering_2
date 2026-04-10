@@ -14,7 +14,7 @@ export interface UprightSpec {
   stubAxleLength: number;  // mm
   wheelOffset: number;     // mm (ET)
   stubAxleCamber: number;  // deg, static camber angle — negative = top-in
-  stubAxleCaster: number;  // deg, static caster angle — positive = tilted rearward
+  stubAxleCaster: number;  // deg, static caster angle — positive = stub axle tilts forward (+X)
 }
 
 export interface VehicleParams {

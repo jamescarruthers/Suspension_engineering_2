@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import type { SuspensionModel } from './model/types';
 import { createDefaultModel } from './model/defaults';
+import { PRESETS } from './model/presets';
 import { useSolver } from './hooks/useSolver';
 import { InputPanel } from './components/InputPanel/InputPanel';
 import { Viewport } from './components/Viewport/Viewport';
@@ -59,6 +60,15 @@ export default function App() {
     reader.readAsText(file);
   }, []);
 
+  const handleLoadPreset = useCallback((id: string) => {
+    const preset = PRESETS.find(p => p.id === id);
+    if (preset) {
+      setModel(preset.factory());
+      setTravel(0);
+      setRackTravel(0);
+    }
+  }, []);
+
   return (
     <div style={{
       display: 'flex',
@@ -79,6 +89,8 @@ export default function App() {
         onExportCSV={handleExportCSV}
         onExportJSON={handleExportJSON}
         onImportJSON={handleImportJSON}
+        presets={PRESETS}
+        onLoadPreset={handleLoadPreset}
       />
 
       <Viewport
