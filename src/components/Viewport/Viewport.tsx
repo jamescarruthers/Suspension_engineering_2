@@ -350,7 +350,7 @@ function SuspensionCorner({ hp, solvedQ, uprightSpec, tyreRadius }: {
     const frame = computeUprightFrame(hp.UBJ, hp.LBJ, hp.TRO);
     // Compute the tilted stub axle direction from angles
     // For LHS, camber sign flips (mirrored), caster stays the same
-    const camRad = -(isLHS ? -uprightSpec.stubAxleCamber : uprightSpec.stubAxleCamber) * Math.PI / 180;
+    const camRad = (isLHS ? -uprightSpec.stubAxleCamber : uprightSpec.stubAxleCamber) * Math.PI / 180;
     const casRad = uprightSpec.stubAxleCaster * Math.PI / 180;
     // Start from outboard: [0, -1, 0] for RHS, [0, +1, 0] for LHS
     const oy = isLHS ? 1 : -1;

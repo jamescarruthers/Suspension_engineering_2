@@ -23,7 +23,7 @@ export function computeStubAxleLocalDir(UBJ0: Vec3, LBJ0: Vec3, TRO0: Vec3, camb
   // in the upright's local frame so it rotates rigidly with the upright. Keep
   // the component along the kingpin axis (e1) — projecting it away would
   // incorrectly force static camber to equal -KPI.
-  const camRad = -camberDeg * Math.PI / 180; // negative camber tilts the top inboard
+  const camRad = camberDeg * Math.PI / 180;
   const casRad = casterDeg * Math.PI / 180;  // positive caster tilts the stub axle forward (+X)
 
   // After camber rotation about X: Y' = Y*cos - Z*sin, Z' = Y*sin + Z*cos
