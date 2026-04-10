@@ -15,15 +15,33 @@ export function computeUprightFrame(UBJ: Vec3, LBJ: Vec3, TRO: Vec3): UprightFra
   return { e1, e2, e3 };
 }
 
-export function computeStubAxleLocalDir(UBJ0: Vec3, LBJ0: Vec3, TRO0: Vec3): Vec3 {
+export function computeStubAxleLocalDir(UBJ0: Vec3, LBJ0: Vec3, TRO0: Vec3, camberDeg: number, casterDeg: number): Vec3 {
   const frame = computeUprightFrame(UBJ0, LBJ0, TRO0);
-  // Static stub axle direction: horizontal outboard [0, -1, 0] for RHS.
-  // Encode in the upright's local frame so it rotates rigidly with the upright.
-  const outboard: Vec3 = [0, -1, 0];
+
+  // Start from horizontal outboard for RHS: [0, -1, 0]
+  // Camber: rotation about X-axis in the front view (YZ plane)
+  //   Negative camber = top of wheel tilts inboard = stub axle tilts downward
+  // Caster: rotation about Z-axis in the side view (XY plane)
+  //   Positive caster = stub axle tilts forward (-X)
+  const camRad = -camberDeg * Math.PI / 180; // negate: negative camber → downward Z
+  const casRad = casterDeg * Math.PI / 180;
+
+  // Start: [0, -1, 0]
+  // After camber rotation about X: Y' = Y*cos - Z*sin, Z' = Y*sin + Z*cos
+  const y1 = -Math.cos(camRad);
+  const z1 = -Math.sin(camRad);
+  // After caster rotation about Z: X' = -Y'*sin, Y' = Y'*cos
+  const x2 = -y1 * Math.sin(casRad);
+  const y2 = y1 * Math.cos(casRad);
+  const z2 = z1;
+
+  const stubDir: Vec3 = [x2, y2, z2];
+
+  // Encode in the upright's local frame so it rotates rigidly with the upright
   return [
-    dot(outboard, frame.e1),
-    dot(outboard, frame.e2),
-    dot(outboard, frame.e3),
+    dot(stubDir, frame.e1),
+    dot(stubDir, frame.e2),
+    dot(stubDir, frame.e3),
   ];
 }
 

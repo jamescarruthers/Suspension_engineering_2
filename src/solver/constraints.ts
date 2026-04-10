@@ -31,7 +31,7 @@ export function createConstraintContext(
   uprightSpec: UprightSpec,
   tyreRadius: number,
 ): ConstraintContext {
-  const stubAxleDir0_local = computeStubAxleLocalDir(hp.UBJ, hp.LBJ, hp.TRO);
+  const stubAxleDir0_local = computeStubAxleLocalDir(hp.UBJ, hp.LBJ, hp.TRO, uprightSpec.stubAxleCamber, uprightSpec.stubAxleCaster);
   const wc0 = deriveWheelCentre(hp.UBJ, hp.LBJ, hp.TRO, uprightSpec, stubAxleDir0_local);
 
   return {
