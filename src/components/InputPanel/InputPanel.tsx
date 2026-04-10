@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { SuspensionModel, HardpointId } from '../../model/types';
 import { HardpointEditor } from './HardpointEditor';
 import { NumberInput } from '../common/NumberInput';
@@ -28,6 +28,7 @@ interface Props {
   presets: PresetOption[];
   onLoadPreset: (id: string) => void;
   onFocusHardpoint?: (hp: FocusedHardpoint | null) => void;
+  selectedHardpoint?: FocusedHardpoint | null;
 }
 
 const TABS = ['Front HP', 'Rear HP', 'Vehicle', 'Springs', 'Dampers'];
@@ -35,8 +36,16 @@ const TABS = ['Front HP', 'Rear HP', 'Vehicle', 'Springs', 'Dampers'];
 export const InputPanel: React.FC<Props> = ({
   model, onChange, travel, onTravelChange, rackTravel, onRackTravelChange,
   onExportCSV, onExportJSON, onImportJSON, presets, onLoadPreset, onFocusHardpoint,
+  selectedHardpoint,
 }) => {
   const [tab, setTab] = useState(0);
+
+  // When a hardpoint is clicked in the 3D view, switch to the correct tab
+  useEffect(() => {
+    if (selectedHardpoint) {
+      setTab(selectedHardpoint.corner === 'front' ? 0 : 1);
+    }
+  }, [selectedHardpoint]);
 
   const update = (partial: Partial<SuspensionModel>) => onChange({ ...model, ...partial });
 
@@ -109,6 +118,7 @@ export const InputPanel: React.FC<Props> = ({
             hardpoints={model.front.hardpoints}
             onChange={hp => update({ front: { ...model.front, hardpoints: hp } })}
             onFocusPoint={id => onFocusHardpoint?.(id ? { corner: 'front', id } : null)}
+            focusPointId={selectedHardpoint?.corner === 'front' ? selectedHardpoint.id : null}
           />
         )}
 
@@ -118,6 +128,7 @@ export const InputPanel: React.FC<Props> = ({
             hardpoints={model.rear.hardpoints}
             onChange={hp => update({ rear: { ...model.rear, hardpoints: hp } })}
             onFocusPoint={id => onFocusHardpoint?.(id ? { corner: 'rear', id } : null)}
+            focusPointId={selectedHardpoint?.corner === 'rear' ? selectedHardpoint.id : null}
           />
         )}
 

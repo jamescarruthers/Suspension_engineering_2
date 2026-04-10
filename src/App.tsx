@@ -13,6 +13,13 @@ export default function App() {
   const [travel, setTravel] = useState(0);
   const [rackTravel, setRackTravel] = useState(0);
   const [focusedHP, setFocusedHP] = useState<FocusedHardpoint | null>(null);
+  const [clickedHP, setClickedHP] = useState<FocusedHardpoint | null>(null);
+
+  const handleClickHardpoint = useCallback((hp: FocusedHardpoint) => {
+    setFocusedHP(hp);
+    // Use a new object each time to re-trigger the useEffect in HardpointEditor
+    setClickedHP({ ...hp });
+  }, []);
 
   const result = useSolver(model, rackTravel);
 
@@ -93,6 +100,7 @@ export default function App() {
         presets={PRESETS}
         onLoadPreset={handleLoadPreset}
         onFocusHardpoint={setFocusedHP}
+        selectedHardpoint={clickedHP}
       />
 
       <Viewport
@@ -104,6 +112,7 @@ export default function App() {
         travel={travel}
         wheelbase={model.vehicle.wheelbase}
         focusedHardpoint={focusedHP}
+        onClickHardpoint={handleClickHardpoint}
       />
 
       <ChartsPanel
